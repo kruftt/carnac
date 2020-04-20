@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "dist",
+    "sourceMap": false,
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowJs": false,
+    "strict": true,
+    "noUnusedLocals": true,
+    "lib": ["ESNext"],
+    "types": ["node", "jest"],
+    "rootDir": ".",
+    "paths": {
+      "carnac": ["src/index"]
+    }
+  },
+  "include": ["src", "test"]
+}
