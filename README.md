@@ -3,39 +3,41 @@
 Carnac - Vue 3 State Management
 
 Design Goals:
-flux architecture
-Avoid monolithic state
-Automatically typed
-Opinionated about store design
+\- flux architecture
+\- Avoid monolithic state
+\- Automatically typed
+\- Opinionated about store design
 
-Store / ComponentStore - provides services and local state to singleton state models
+&nbsp;
+### Store / ComponentStore
+- state    (readonly singleton state tree)
+- patch/set
+- getters  (computed/state)
+- actions  (return promises? - does this happen automatically with async?)
 
-    Interface:
-    - state    (readonly state tree)
-    - patch/set
-    - getters  (computed/state)
-    - actions  (return promises? - does this happen automatically with async?)
+&nbsp;
+### Depot / ModelStore
+- models  // get/filter/where/reject/etc .. stored in Map
+- patch   // patch(id, changes)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// patch(model, changes)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// patch(DepotQuery<T>, changes)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// patch({[K]: T})
+- getters
+- actions
 
-Depot / ModelStore - manages a single model type in a Map / Record<string, T> - Query methods... filter, where, except, orderBy, skip, take, etc
+Maintains a Map/Record<string, T>
+.models allows iteration
 
-    - can only change via patch(key, DeepPartial<T>) ??
-    - maybe also allow query/batch patching: patch(queryList, patchObject}
 
-    Interface:
-    - models   // get/filter/where/reject/etc .. readonly arrays
-    - patch   // patch(id, changes), patch(model, changes), patch(DepotQuery<T>, changes
-    		  // patch({[K]: T})
-    - getters
-    - actions
-
+```
 const counterStore = useCounterStore()
 const userDepot = useUserDepot()
 
 return {
-...counterStore.state,
-...counterStore.getters,
-...counterStore.actions,
-patchStore: counterStore.patch,
+    ...counterStore.state,
+    ...counterStore.getters,
+    ...counterStore.actions,
+    patchStore: counterStore.patch,
 
     users: userDepot.models,	// DepotModels<User> -- iterating over models iterates over users.all
     // for (model of models) { ...iterates all models }
@@ -47,20 +49,19 @@ patchStore: counterStore.patch,
 }
 
 return {
-...counterStore, // could only do with one store because of state
-users: userStore.state,
-userQuery: userStore.query
+    ...counterStore, // could only do with one store because of state
+    users: userStore.state,
+    userQuery: userStore.query
 }
 
 userQuery.where({lastName: "smith"}).first(5)
-
-state.counter
 
 let item = items[id]
 item.name = "blender" // Error: Readonly!
 items.patch(id, {name: blender})
 items.patch(item, {name: blender})
 items.patch(filterFn, {name: blender})
+```
 
 What about actions and so on for individual models?
 
