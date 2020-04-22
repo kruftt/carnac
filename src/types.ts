@@ -1,97 +1,150 @@
-import { Ref, ref } from 'vue'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { Ref, ComputedRef, ref } from 'vue'
 
 export type DeepReadonly<T> = { readonly [P in keyof T]: DeepReadonly<T[P]> }
 export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> }
+export type StateTree = Record<string | number | symbol, any>
 
-export type RawStoreGetter<S, RG extends RawStoreGetters<S>> = {
-  (state?: DeepReadonly<S>, getters?: ComputedStoreGetters<S, RG>): unknown
+export type RawStoreGetter<S extends StateTree, G extends RawStoreGetters<S>> = {
+  (state: DeepReadonly<S>, getters: ComputedStoreGetters<S, G>): any
 }
 
-export type RawStoreGetters<S> = {
+export type RawStoreGetters<S extends StateTree> = {
   [key: string]: RawStoreGetter<S, RawStoreGetters<S>>
 }
 
-export type ComputedStoreGetters<S, RG extends RawStoreGetters<S>> = {
-  [K in keyof RG]: Ref<ReturnType<RG[K]>>
+export type ComputedStoreGetters<S extends StateTree, G extends RawStoreGetters<S>> = {
+  [K in keyof G]: ComputedRef<ReturnType<G[K]>>
 }
 
-export type RawStoreAction<S, RG extends RawStoreGetters<S>> = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (this: Store<S, RG, RawStoreActions<S, RG>>, ...args: Array<any>): any
+// Using inference to avoid these Params may help Type printouts
+// export type CComputedStoreGetters<G> = {
+//   [K in keyof G]: G extends RawStoreGetters<infer S>
+//     ? ComputedRef<ReturnType<G[K]>>
+//     : never
+// }
+
+export type RawStoreAction<S extends StateTree, G extends RawStoreGetters<S>> = {
+  (this: MutableStore<S, G, RawStoreActions<S, G>>, ...args: Array<any>): any
 }
 
-export type RawStoreActions<S, RG extends RawStoreGetters<S>> = {
-  [key: string]: RawStoreAction<S, RG>
+export type RawStoreActions<S extends StateTree, G extends RawStoreGetters<S>> = {
+  [key: string]: RawStoreAction<S, G>
 }
 
 export type BoundStoreActions<
-  S,
-  RG extends RawStoreGetters<S>,
-  RSA extends RawStoreActions<S, RG>
+  S extends StateTree,
+  G extends RawStoreGetters<S>,
+  A extends RawStoreActions<S, G>
 > = {
-  [K in keyof RSA]: (
-    ...args: RSA[K] extends (...args: infer _Args) => unknown ? _Args : never
-  ) => ReturnType<RSA[K]>
+  [K in keyof A]: (...args: Parameters<A[K]>) => ReturnType<A[K]>
 }
 
-export type Store<
-  S,
-  RG extends RawStoreGetters<S>,
-  RSA extends RawStoreActions<S, RG>
-> = {
-  state: DeepReadonly<S>
-  getters: ComputedStoreGetters<S, RG>
-  actions: BoundStoreActions<S, RG, RSA>
+export interface StoreEvent<_Store> {
+  type: string
+  store: _Store extends ImmutableStore<infer S, infer G, infer A>
+    ? ImmutableStore<S, G, A>
+    : never
+}
+
+interface BaseStore<
+  S extends StateTree,
+  G extends RawStoreGetters<S>,
+  A extends RawStoreActions<S, G>
+> {
+  getters: ComputedStoreGetters<S, G>
+  actions: BoundStoreActions<S, G, A>
   patch: (changes: DeepPartial<S>) => DeepPartial<S>
+  notify: (evt: StoreEvent<ImmutableStore<S, G, A>>) => void
 }
 
-export type DepotModels<T> = {
+export interface MutableStore<
+  S extends StateTree,
+  G extends RawStoreGetters<S>,
+  A extends RawStoreActions<S, G>
+> extends BaseStore<S, G, A> {
+  state: Ref<S>
+}
+
+export interface ImmutableStore<
+  S extends StateTree,
+  G extends RawStoreGetters<S>,
+  A extends RawStoreActions<S, G>
+> extends BaseStore<S, G, A> {
+  state: Ref<DeepReadonly<S>>
+}
+
+export type MutableDepotModels<T> = {
   get: (id: string) => T | null
-  where: () => DepotModels<T>
-  first: (n: number) => DepotModels<T>
+  where: () => MutableDepotModels<T>
+  first: (n: number) => MutableDepotModels<T>
   patch: (changes: DeepPartial<T>) => Array<DeepPartial<T>>
-  [Symbol.iterator]: Iterable<T>
+  [Symbol.iterator]: IterableIterator<T>
+}
+
+export type ImmutableDepotModels<T> = {
+  get: (id: string) => Readonly<T> | null
+  where: () => ImmutableDepotModels<T>
+  first: (n: number) => ImmutableDepotModels<T>
+  patch: (changes: DeepPartial<T>) => Array<DeepPartial<T>>
+  [Symbol.iterator]: IterableIterator<Readonly<T>>
 }
 
 export type RawDepotGetter<T> = {
-  (models?: DepotModels<T>, getters?: RawDepotGetters<T>): unknown
+  (models: ImmutableDepotModels<T>, getters: RawDepotGetters<T>): any
 }
 
 export type RawDepotGetters<T> = {
   [key: string]: RawDepotGetter<T>
 }
 
-export type ComputedDepotGetters<T, RDG extends RawDepotGetters<T>> = {
-  [K in keyof RDG]: Ref<ReturnType<RDG[K]>>
+export type ComputedDepotGetters<T, G extends RawDepotGetters<T>> = {
+  [K in keyof G]: ComputedRef<ReturnType<G[K]>>
 }
 
-export type RawDepotAction<T, RDG extends RawDepotGetters<T>> = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (this: Depot<T, RDG, RawDepotActions<T, RDG>>, ...args: Array<any>): any
+export type RawDepotAction<T, G extends RawDepotGetters<T>> = {
+  (this: MutableDepot<T, G, RawDepotActions<T, G>>, ...args: Array<any>): any
 }
 
-export type RawDepotActions<T, RDG extends RawDepotGetters<T>> = {
-  [key: string]: RawDepotAction<T, RDG>
+export type RawDepotActions<T, G extends RawDepotGetters<T>> = {
+  [key: string]: RawDepotAction<T, G>
 }
 
 export type BoundDepotActions<
   T,
-  RDG extends RawDepotGetters<T>,
-  RDA extends RawDepotActions<T, RDG>
+  G extends RawDepotGetters<T>,
+  A extends RawDepotActions<T, G>
 > = {
-  [K in keyof RDA]: (
-    ...args: RDA[K] extends (...args: infer _Args) => unknown ? _Args : never
-  ) => ReturnType<RDA[K]>
+  [K in keyof A]: (...args: Parameters<A[K]>) => ReturnType<A[K]>
 }
 
-export type Depot<
+export interface DepotEvent<_Depot> {
+  type: string
+  store: _Depot extends ImmutableDepot<infer T, infer G, infer A>
+    ? ImmutableDepot<T, G, A>
+    : never
+}
+
+interface BaseDepot<T, G extends RawDepotGetters<T>, A extends RawDepotActions<T, G>> {
+  getters: ComputedDepotGetters<T, G>
+  actions: BoundDepotActions<T, G, A>
+  notify: (evt: DepotEvent<ImmutableDepot<T, G, A>>) => void
+}
+
+export interface MutableDepot<
   T,
-  RDG extends RawDepotGetters<T>,
-  RDA extends RawDepotActions<T, RDG>
-> = {
-  models: DepotModels<T>
-  getters: ComputedDepotGetters<T, RDG>
-  actions: BoundDepotActions<T, RDG, RDA>
+  G extends RawDepotGetters<T>,
+  A extends RawDepotActions<T, G>
+> extends BaseDepot<T, G, A> {
+  models: MutableDepotModels<T>
+}
+
+export interface ImmutableDepot<
+  T,
+  G extends RawDepotGetters<T>,
+  A extends RawDepotActions<T, G>
+> extends BaseDepot<T, G, A> {
+  models: ImmutableDepotModels<T>
 }
 
 /*
