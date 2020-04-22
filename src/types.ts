@@ -5,31 +5,22 @@ export type DeepReadonly<T> = { readonly [P in keyof T]: DeepReadonly<T[P]> }
 export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> }
 export type StateTree = Record<string | number | symbol, any>
 
-export type RawStoreGetter<S extends StateTree, G extends RawStoreGetters<S>> = {
-  (state: DeepReadonly<S>, getters: ComputedStoreGetters<S, G>): any
-}
-
 export type RawStoreGetters<S extends StateTree> = {
-  [key: string]: RawStoreGetter<S, RawStoreGetters<S>>
+  [key: string]: (state: DeepReadonly<S>) => any
 }
 
+// export type ComputedStoreGetters<S extends StateTree, G extends RawStoreGetters<S>> = {
+//   [K in keyof G]: ComputedRef<ReturnType<G[K]>>
+// }
 export type ComputedStoreGetters<S extends StateTree, G extends RawStoreGetters<S>> = {
   [K in keyof G]: ComputedRef<ReturnType<G[K]>>
 }
 
-// Using inference to avoid these Params may help Type printouts
-// export type CComputedStoreGetters<G> = {
-//   [K in keyof G]: G extends RawStoreGetters<infer S>
-//     ? ComputedRef<ReturnType<G[K]>>
-//     : never
-// }
-
-export type RawStoreAction<S extends StateTree, G extends RawStoreGetters<S>> = {
-  (this: MutableStore<S, G, RawStoreActions<S, G>>, ...args: Array<any>): any
-}
-
 export type RawStoreActions<S extends StateTree, G extends RawStoreGetters<S>> = {
-  [key: string]: RawStoreAction<S, G>
+  [key: string]: (
+    this: MutableStore<S, G, RawStoreActions<S, G>>,
+    ...args: Array<any>
+  ) => any
 }
 
 export type BoundStoreActions<

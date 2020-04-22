@@ -15,7 +15,9 @@ export default function buildStore<
   A extends RawStoreActions<S, G>
 >(
   buildState: () => S = () => ({} as S),
-  getters: G = {} as G,
+  // getters: G = {} as G,
+  // getters: G & ThisType<ImmutableStore<S, G, A>> = {} as G,
+  getters: G & ThisType<ComputedStoreGetters<S, G>> = {} as G,
   actions: A = {} as A,
   initialState?: S
 ): () => ImmutableStore<S, G, A> {
@@ -28,7 +30,7 @@ export default function buildStore<
   const computedGetters: ComputedStoreGetters<S, G> = {} as ComputedStoreGetters<S, G>
   for (const name in getters) {
     computedGetters[name] = computed(() =>
-      getters[name](state.value as Readonly<S>, computedGetters)
+      getters[name].call(computedGetters, state.value as Readonly<S>)
     )
   }
 
@@ -57,18 +59,34 @@ export default function buildStore<
 const useMyStore = buildStore(
   () => ({ first: 'super', last: 'man', foo: { bar: 'baz' } }),
   {
-    fullName(state, getters) {
+    fullName(state): string {
+      this.nisha.value
       return state.first + ' ' + state.last
     },
-    greeting(state, getters) {
-      return 'greetings ' + getters.fullName.value
+    greeting(state): string {
+      return 'greetings ' + this.fullName.value // string
+    },
+    nisha(): 'Nisha!' {
+      this.fullName.value
+      this.greeting.value
+      return 'Nisha!'
     },
   },
   {
     myAction() {
-      this.getters.greeting.value // string
+      this.getters // :string
+    },
+    otherAction() {
+      // this.actions.myAction // (args: any[]) => any
+      return 5
     },
   }
 )
 
 const myStore = useMyStore()
+
+const o = {
+  methods() {
+    this.methods
+  },
+}
