@@ -3,31 +3,37 @@ import { Ref, ComputedRef, ref } from 'vue'
 
 export type DeepReadonly<T> = { readonly [P in keyof T]: DeepReadonly<T[P]> }
 export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> }
-export type StateTree = Record<string | number | symbol, any>
+// export type StateTree = Record<string | number | symbol, any>
+export type StateTree = any
 
 export type RawStoreGetters<S extends StateTree> = {
   [key: string]: (state: DeepReadonly<S>) => any
 }
 
+export type ComputedStoreGetters<G> = G extends RawStoreGetters<infer S>
+  ? {
+      [K in keyof G]: ComputedRef<ReturnType<G[K]>>
+    }
+  : never
 // export type ComputedStoreGetters<S extends StateTree, G extends RawStoreGetters<S>> = {
 //   [K in keyof G]: ComputedRef<ReturnType<G[K]>>
 // }
-export type ComputedStoreGetters<S extends StateTree, G extends RawStoreGetters<S>> = {
-  [K in keyof G]: ComputedRef<ReturnType<G[K]>>
+
+export type RawStoreActions = {
+  [key: string]: (...args: Array<any>) => any
 }
 
-export type RawStoreActions<S extends StateTree, G extends RawStoreGetters<S>> = {
-  [key: string]: (
-    this: MutableStore<S, G, RawStoreActions<S, G>>,
-    ...args: Array<any>
-  ) => any
-}
+// This type needs to be extended by the parameter type, and so can't accept the parameter type as a generic parameter?
+// export type RawStoreActions<
+//   G,
+//   A extends RawStoreActions
+// > = G extends RawStoreGetters<infer S>
+//   ? {
+//       [key: string]: (this: MutableStore<S, G, A>, ...args: Array<any>) => any
+//     }
+//   : never
 
-export type BoundStoreActions<
-  S extends StateTree,
-  G extends RawStoreGetters<S>,
-  A extends RawStoreActions<S, G>
-> = {
+export type BoundStoreActions<A extends RawStoreActions> = {
   [K in keyof A]: (...args: Parameters<A[K]>) => ReturnType<A[K]>
 }
 
@@ -41,10 +47,10 @@ export interface StoreEvent<_Store> {
 interface BaseStore<
   S extends StateTree,
   G extends RawStoreGetters<S>,
-  A extends RawStoreActions<S, G>
+  A extends RawStoreActions
 > {
-  getters: ComputedStoreGetters<S, G>
-  actions: BoundStoreActions<S, G, A>
+  getters: ComputedStoreGetters<G>
+  actions: BoundStoreActions<A>
   patch: (changes: DeepPartial<S>) => DeepPartial<S>
   notify: (evt: StoreEvent<ImmutableStore<S, G, A>>) => void
 }
@@ -52,7 +58,7 @@ interface BaseStore<
 export interface MutableStore<
   S extends StateTree,
   G extends RawStoreGetters<S>,
-  A extends RawStoreActions<S, G>
+  A extends RawStoreActions
 > extends BaseStore<S, G, A> {
   state: Ref<S>
 }
@@ -60,7 +66,7 @@ export interface MutableStore<
 export interface ImmutableStore<
   S extends StateTree,
   G extends RawStoreGetters<S>,
-  A extends RawStoreActions<S, G>
+  A extends RawStoreActions
 > extends BaseStore<S, G, A> {
   state: Ref<DeepReadonly<S>>
 }
