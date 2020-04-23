@@ -1,52 +1,49 @@
 import { ref, computed } from 'vue'
 import {
-  StateTree,
-  RawStoreActions,
-  RawStoreGetters,
-  ImmutableStore,
-  ComputedStoreGetters,
   BoundStoreActions,
+  BoundStoreComputed,
+  DeepReadonly,
+  ImmutableStore,
   MutableStore,
+  RawStoreActions,
+  RawStoreComputed,
+  StateTree,
 } from './types'
 
 export default function buildStore<
   S extends StateTree,
-  G extends RawStoreGetters<S>,
+  C extends RawStoreComputed<S>,
   A extends RawStoreActions
 >(
   buildState: () => S = () => ({} as S),
-  // getters: G = {} as G,
-  // getters: G & ThisType<ImmutableStore<S, G, A>> = {} as G,
-  getters: G & ThisType<ComputedStoreGetters<G>> = {} as G,
-  actions: A & ThisType<MutableStore<S, G, A>> = {} as A,
+  rawComputed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>> = {} as C,
+  rawActions: A & ThisType<MutableStore<S, C, A>> = {} as A,
   initialState?: S
-): () => ImmutableStore<S, G, A> {
-  const store: ImmutableStore<S, G, A> = {} as ImmutableStore<S, G, A>
+): () => ImmutableStore<S, C, A> {
+  const store: ImmutableStore<S, C, A> = {} as ImmutableStore<S, C, A>
 
   // transform state to ref
   const state = ref(initialState || buildState())
 
   // computed getters
-  // const computedGetters = {} as { [index: string]: Ref<any> }
-  // const computedGetters = {} as ComputedStoreGetters<G>
-  const computedGetters = {} as ComputedStoreGetters<RawStoreGetters<StateTree>>
-  for (const name in getters) {
-    computedGetters[name] = computed(() =>
-      getters[name].call(computedGetters, state.value as Readonly<S>)
+  const computedGetters = {} as BoundStoreComputed<RawStoreComputed<StateTree>>
+  for (const fn in rawComputed) {
+    computedGetters[fn] = computed(() =>
+      rawComputed[fn].call(computedGetters, state.value as Readonly<S>)
     )
   }
 
   // bind actions to this context
   const boundActions = {} as BoundStoreActions<A>
-  for (const name in actions) {
+  for (const name in rawActions) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     boundActions[name] = function (...args: Array<any>) {
-      return actions[name].apply(store as MutableStore<S, G, A>, args)
+      return rawActions[name].apply(store as MutableStore<S, C, A>, args)
     }
   }
 
   // create store object
-  store.getters = computedGetters as ComputedStoreGetters<G>
+  store.computed = computedGetters as BoundStoreComputed<C>
   store.actions = boundActions
 
   // wrap in use function
@@ -58,76 +55,38 @@ export default function buildStore<
   return useStore
 }
 
-// type mystate = { first: string; last: string; foo: { bar: string } }
-// type A = {
-//   [index: string]: (arg: number) => any
-// }
-
-// type B<_A extends A> = {
-//   [K in keyof _A]: ReturnType<_A[K]>
-// }
-// type B<_A extends A> = {
-//   [K in keyof _A]: ReturnType<_A[K]>
-// }
-
-// function f<_A extends A>(a: _A & ThisType<B<_A>>) {
-//   return null
-// }
-
-// f({
-//   one: () => 1,
-//   two() {
-//     this.one
-//   },
-// })
-
 const useMyStore = buildStore(
   () => ({ first: 'super', last: 'man', foo: { bar: 'baz' } }),
   {
     fullName(state): string {
       this.nisha.value
+      this.fullName.value
       return state.first + ' ' + state.last
     },
-    greeting(state): string {
-      return 'greetings ' + this.fullName.value // string
+    greeting(): string {
+      return 'greetings ' + this.fullName.value
     },
     nisha(): 'Nisha!' {
       this.fullName.value
       this.greeting.value
       return 'Nisha!'
     },
+    test: (state) => {
+      state.first
+    },
   },
   {
     myAction() {
-      this.getters.nisha.value // :string
-      const a = this.actions.otherAction()
+      this.computed.nisha.value
+      this.actions.otherAction()
+      return 4
     },
     otherAction() {
-      // this.actions.myAction // (args: any[]) => any
+      this.actions.myAction
       return 5
     },
   }
 )
 
 const myStore = useMyStore()
-
-type ObjectDescriptor<D, M> = {
-  data?: D
-  methods?: M & ThisType<D & M> // Type of 'this' in methods is D & M
-}
-
-function makeObject<D, M>(desc: ObjectDescriptor<D, M>): D & M {
-  const data: object = desc.data || {}
-  const methods: object = desc.methods || {}
-  return { ...data, ...methods } as D & M
-}
-
-const obj = makeObject({
-  data: { x: 0, y: 0 },
-  methods: {
-    moveBy(dx: number, dy: number) {
-      this.x += dx // Strongly typed this
-      this.y += dy // Strongly typed this
-    },
-  },
-})
+myStore

@@ -1,167 +1,120 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Ref, ComputedRef, ref } from 'vue'
+import { Ref, ComputedRef } from 'vue'
 
 export type DeepReadonly<T> = { readonly [P in keyof T]: DeepReadonly<T[P]> }
 export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> }
-// export type StateTree = Record<string | number | symbol, any>
 export type StateTree = any
 
-export type RawStoreGetters<S extends StateTree> = {
-  [key: string]: (state: DeepReadonly<S>) => any
+export type RawStoreComputed<S extends StateTree> = {
+  [getter: string]: (state: DeepReadonly<S>) => any
 }
 
-export type ComputedStoreGetters<G> = G extends RawStoreGetters<infer S>
-  ? {
-      [K in keyof G]: ComputedRef<ReturnType<G[K]>>
-    }
+// using extends/infer prevents the type signature from containing the state object twice
+export type BoundStoreComputed<C> = C extends RawStoreComputed<infer S>
+  ? { [k in keyof C]: ComputedRef<ReturnType<C[k]>> }
   : never
-// export type ComputedStoreGetters<S extends StateTree, G extends RawStoreGetters<S>> = {
-//   [K in keyof G]: ComputedRef<ReturnType<G[K]>>
-// }
 
 export type RawStoreActions = {
   [key: string]: (...args: Array<any>) => any
 }
 
-// This type needs to be extended by the parameter type, and so can't accept the parameter type as a generic parameter?
-// export type RawStoreActions<
-//   G,
-//   A extends RawStoreActions
-// > = G extends RawStoreGetters<infer S>
-//   ? {
-//       [key: string]: (this: MutableStore<S, G, A>, ...args: Array<any>) => any
-//     }
-//   : never
-
+// Copying over the properties in this way gets 'this' to update in the 'rawActions' parameter
 export type BoundStoreActions<A extends RawStoreActions> = {
-  [K in keyof A]: (...args: Parameters<A[K]>) => ReturnType<A[K]>
+  [k in keyof A]: (...args: Parameters<A[k]>) => ReturnType<A[k]>
 }
 
-export interface StoreEvent<_Store> {
+export interface StoreEvent<store> {
   type: string
-  store: _Store extends ImmutableStore<infer S, infer G, infer A>
-    ? ImmutableStore<S, G, A>
+  store: store extends ImmutableStore<infer S, infer C, infer A>
+    ? ImmutableStore<S, C, A>
     : never
 }
 
-interface BaseStore<
+type BaseStore<
   S extends StateTree,
-  G extends RawStoreGetters<S>,
+  C extends RawStoreComputed<S>,
   A extends RawStoreActions
-> {
-  getters: ComputedStoreGetters<G>
+> = {
   actions: BoundStoreActions<A>
   patch: (changes: DeepPartial<S>) => DeepPartial<S>
-  notify: (evt: StoreEvent<ImmutableStore<S, G, A>>) => void
+  notify: (evt: StoreEvent<ImmutableStore<S, C, A>>) => void
 }
 
-export interface MutableStore<
+export type MutableStore<
   S extends StateTree,
-  G extends RawStoreGetters<S>,
+  C extends RawStoreComputed<S>,
   A extends RawStoreActions
-> extends BaseStore<S, G, A> {
+> = BaseStore<S, C, A> & {
   state: Ref<S>
+  computed: BoundStoreComputed<C>
 }
 
-export interface ImmutableStore<
+export type ImmutableStore<
   S extends StateTree,
-  G extends RawStoreGetters<S>,
+  C extends RawStoreComputed<S>,
   A extends RawStoreActions
-> extends BaseStore<S, G, A> {
-  state: Ref<DeepReadonly<S>>
+> = BaseStore<S, C, A> & {
+  state: DeepReadonly<Ref<S>>
+  computed: DeepReadonly<BoundStoreComputed<C>>
 }
 
-export type MutableDepotModels<T> = {
-  get: (id: string) => T | null
-  where: () => MutableDepotModels<T>
-  first: (n: number) => MutableDepotModels<T>
-  patch: (changes: DeepPartial<T>) => Array<DeepPartial<T>>
-  [Symbol.iterator]: IterableIterator<T>
+export type MutableDepotModels<M> = {
+  get: (id: string) => M | null
+  where: () => MutableDepotModels<M>
+  first: (n: number) => MutableDepotModels<M>
+  patch: (changes: DeepPartial<M>) => Array<DeepPartial<M>>
+  [Symbol.iterator]: IterableIterator<M>
 }
 
-export type ImmutableDepotModels<T> = {
-  get: (id: string) => Readonly<T> | null
-  where: () => ImmutableDepotModels<T>
-  first: (n: number) => ImmutableDepotModels<T>
-  patch: (changes: DeepPartial<T>) => Array<DeepPartial<T>>
-  [Symbol.iterator]: IterableIterator<Readonly<T>>
+export type ImmutableDepotModels<M> = {
+  get: (id: string) => Readonly<M> | null
+  where: () => ImmutableDepotModels<M>
+  first: (n: number) => ImmutableDepotModels<M>
+  patch: (changes: DeepPartial<M>) => Array<DeepPartial<M>>
+  [Symbol.iterator]: IterableIterator<Readonly<M>>
 }
 
-export type RawDepotGetter<T> = {
-  (models: ImmutableDepotModels<T>, getters: RawDepotGetters<T>): any
+export type RawDepotComputed<M> = {
+  [rawComputed: string]: (models: ImmutableDepotModels<M>) => any
 }
 
-export type RawDepotGetters<T> = {
-  [key: string]: RawDepotGetter<T>
+export type ComputedDepotGetters<M, C extends RawDepotComputed<M>> = {
+  [k in keyof C]: ComputedRef<ReturnType<C[k]>>
 }
 
-export type ComputedDepotGetters<T, G extends RawDepotGetters<T>> = {
-  [K in keyof G]: ComputedRef<ReturnType<G[K]>>
+export type RawDepotActions = {
+  [key: string]: (...args: Array<any>) => any
 }
 
-export type RawDepotAction<T, G extends RawDepotGetters<T>> = {
-  (this: MutableDepot<T, G, RawDepotActions<T, G>>, ...args: Array<any>): any
-}
-
-export type RawDepotActions<T, G extends RawDepotGetters<T>> = {
-  [key: string]: RawDepotAction<T, G>
-}
-
-export type BoundDepotActions<
-  T,
-  G extends RawDepotGetters<T>,
-  A extends RawDepotActions<T, G>
-> = {
-  [K in keyof A]: (...args: Parameters<A[K]>) => ReturnType<A[K]>
+export type BoundDepotActions<A extends RawDepotActions> = {
+  [k in keyof A]: (...args: Parameters<A[k]>) => ReturnType<A[k]>
 }
 
 export interface DepotEvent<_Depot> {
   type: string
-  store: _Depot extends ImmutableDepot<infer T, infer G, infer A>
-    ? ImmutableDepot<T, G, A>
+  store: _Depot extends ImmutableDepot<infer T, infer C, infer A>
+    ? ImmutableDepot<T, C, A>
     : never
 }
 
-interface BaseDepot<T, G extends RawDepotGetters<T>, A extends RawDepotActions<T, G>> {
-  getters: ComputedDepotGetters<T, G>
-  actions: BoundDepotActions<T, G, A>
-  notify: (evt: DepotEvent<ImmutableDepot<T, G, A>>) => void
+export type BaseDepot<M, C extends RawDepotComputed<M>, A extends RawDepotActions> = {
+  getters: ComputedDepotGetters<M, C>
+  actions: BoundDepotActions<A>
+  notify: (evt: DepotEvent<ImmutableDepot<M, C, A>>) => void
 }
 
-export interface MutableDepot<
-  T,
-  G extends RawDepotGetters<T>,
-  A extends RawDepotActions<T, G>
-> extends BaseDepot<T, G, A> {
-  models: MutableDepotModels<T>
+export type MutableDepot<
+  M,
+  C extends RawDepotComputed<M>,
+  A extends RawDepotActions
+> = BaseDepot<M, C, A> & {
+  models: MutableDepotModels<M>
 }
 
-export interface ImmutableDepot<
-  T,
-  G extends RawDepotGetters<T>,
-  A extends RawDepotActions<T, G>
-> extends BaseDepot<T, G, A> {
-  models: ImmutableDepotModels<T>
+export type ImmutableDepot<
+  M,
+  C extends RawDepotComputed<M>,
+  A extends RawDepotActions
+> = BaseDepot<M, C, A> & {
+  models: ImmutableDepotModels<M>
 }
-
-/*
-type _S = { foo: string }
-type _G = {
-  hello: () => string
-}
-type _A = {
-  addFive: (a: number) => number
-}
-
-type MyStore = Store<_S, _G, _A>
-
-const store: MyStore = {
-  state: { foo: 'bar' },
-  getters: {
-    hello: ref('world'),
-  },
-  actions: {
-    addFive: (a: number) => a + 5,
-  },
-}
-*/
