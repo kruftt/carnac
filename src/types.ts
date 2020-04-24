@@ -1,11 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Ref, ComputedRef } from 'vue'
+import { isFunction } from 'util'
 
 export type DeepReadonly<T> = { readonly [P in keyof T]: DeepReadonly<T[P]> }
 export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> }
-export type StateTree = any
+export type StateValue =
+  | boolean
+  | string
+  | number
+  | bigint
+  | Array<any>
+  | Map<any, any>
+  | Set<any>
+  | WeakMap<any, any>
+  | WeakSet<any>
+  | { [index: string]: StateValue }
 
-export type RawStoreComputed<S extends StateTree> = {
+// TODO: Change to whitelist
+export function isStateValue(a: unknown): a is StateValue {
+  return !isFunction(a)
+}
+
+export type RawStoreComputed<S extends StateValue> = {
   [getter: string]: (state: DeepReadonly<S>) => any
 }
 
@@ -31,7 +47,7 @@ export interface StoreEvent<store> {
 }
 
 type BaseStore<
-  S extends StateTree,
+  S extends StateValue,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
 > = {
@@ -41,20 +57,20 @@ type BaseStore<
 }
 
 export type MutableStore<
-  S extends StateTree,
+  S extends StateValue,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
 > = BaseStore<S, C, A> & {
-  state: Ref<S>
+  state: S
   computed: BoundStoreComputed<C>
 }
 
 export type ImmutableStore<
-  S extends StateTree,
+  S extends StateValue,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
 > = BaseStore<S, C, A> & {
-  state: DeepReadonly<Ref<S>>
+  state: DeepReadonly<S>
   computed: DeepReadonly<BoundStoreComputed<C>>
 }
 
