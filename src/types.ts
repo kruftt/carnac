@@ -1,27 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Ref, ComputedRef } from 'vue'
-import { isFunction } from 'util'
+import { ComputedRef } from 'vue'
 
 export type DeepReadonly<T> = { readonly [P in keyof T]: DeepReadonly<T[P]> }
 export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> }
-export type StateValue =
-  | boolean
-  | string
-  | number
-  | bigint
-  | Array<any>
-  | Map<any, any>
-  | Set<any>
-  | WeakMap<any, any>
-  | WeakSet<any>
-  | { [index: string]: StateValue }
+export type RootState = Record<string | number | symbol, any>
 
-// TODO: Change to whitelist
-export function isStateValue(a: unknown): a is StateValue {
-  return !isFunction(a)
+export function isRootState<R extends RootState>(a: unknown): a is R {
+  return !(typeof a === 'function')
 }
 
-export type RawStoreComputed<S extends StateValue> = {
+export type RawStoreComputed<S extends RootState> = {
   [getter: string]: (state: DeepReadonly<S>) => any
 }
 
@@ -34,7 +22,6 @@ export type RawStoreActions = {
   [key: string]: (...args: Array<any>) => any
 }
 
-// Copying over the properties in this way gets 'this' to update in the 'rawActions' parameter
 export type BoundStoreActions<A extends RawStoreActions> = {
   [k in keyof A]: (...args: Parameters<A[k]>) => ReturnType<A[k]>
 }
@@ -47,17 +34,24 @@ export interface StoreEvent<store> {
 }
 
 type BaseStore<
-  S extends StateValue,
+  S extends RootState,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
 > = {
+  id: string
   actions: BoundStoreActions<A>
   patch: (changes: DeepPartial<S>) => DeepPartial<S>
   notify: (evt: StoreEvent<ImmutableStore<S, C, A>>) => void
 }
 
+export type GenericStore = BaseStore<
+  RootState,
+  RawStoreComputed<RootState>,
+  RawStoreActions
+>
+
 export type MutableStore<
-  S extends StateValue,
+  S extends RootState,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
 > = BaseStore<S, C, A> & {
@@ -66,7 +60,7 @@ export type MutableStore<
 }
 
 export type ImmutableStore<
-  S extends StateValue,
+  S extends RootState,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
 > = BaseStore<S, C, A> & {
@@ -113,7 +107,11 @@ export interface DepotEvent<_Depot> {
     : never
 }
 
-export type BaseDepot<M, C extends RawDepotComputed<M>, A extends RawDepotActions> = {
+export type BaseDepot<
+  M,
+  C extends RawDepotComputed<M>,
+  A extends RawDepotActions
+> = {
   getters: ComputedDepotGetters<M, C>
   actions: BoundDepotActions<A>
   notify: (evt: DepotEvent<ImmutableDepot<M, C, A>>) => void
@@ -134,3 +132,50 @@ export type ImmutableDepot<
 > = BaseDepot<M, C, A> & {
   models: ImmutableDepotModels<M>
 }
+
+export type StoreConfig<
+  S extends RootState,
+  C extends RawStoreComputed<S>,
+  A extends RawStoreActions
+> = {
+  id: string
+  state: S | (() => S)
+  computed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>>
+  actions: A & ThisType<MutableStore<S, C, A>>
+}
+
+/*
+const myStoreObject: StoreConfig<S, C, A> = {
+  id: 'mystore',
+  state: { first: 'super', last: 'man', foo: { bar: 'baz' } },
+  computed: {
+    fullName(state) {
+      this.nisha.value
+      this.fullName.value
+      return state.first + ' ' + state.last
+    },
+    greeting() {
+      return 'greetings ' + this.fullName.value
+    },
+    nisha() {
+      this.fullName.value
+      this.greeting.value
+      return 'Nisha!'
+    },
+    test: (state) => {
+      state.first
+    },
+  },
+  actions: {
+    myAction() {
+      this.computed.nisha.value
+      this.actions.otherAction()
+      return 4
+    },
+    otherAction() {
+      this.actions.myAction
+      return 5
+    },
+  },
+}
+*/

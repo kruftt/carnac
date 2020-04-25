@@ -1,4 +1,4 @@
-import { Ref, ref, computed } from 'vue'
+import {} from './provider'
 import {
   BoundStoreActions,
   BoundStoreComputed,
@@ -7,29 +7,27 @@ import {
   MutableStore,
   RawStoreActions,
   RawStoreComputed,
-  StateValue,
-  isStateValue,
+  RootState,
+  isRootState,
+  StoreConfig,
 } from './types'
+import { Ref, ref, computed } from 'vue'
 
-export default function buildStore<
-  S extends StateValue,
+function _buildStore<
+  S extends RootState,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
 >(
+  id: string = Math.random().toString(),
   stateParam: S | (() => S) = () => ({} as S),
   rawComputed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>> = {} as C,
   rawActions: A & ThisType<MutableStore<S, C, A>> = {} as A
 ): () => ImmutableStore<S, C, A> {
   const store: ImmutableStore<S, C, A> = {} as ImmutableStore<S, C, A>
+  const stateRef: Ref<S> = isRootState<S>(stateParam)
+    ? ref(stateParam)
+    : ref(stateParam())
 
-  let stateRef: Ref<StateValue>
-  // transform state to ref
-  if (isStateValue(stateParam)) {
-    stateRef = ref(stateParam)
-  } else {
-    stateRef = ref(stateParam())
-  }
-  // const state = ref(initialState || buildState())
   Object.defineProperty(store, 'state', {
     get() {
       return stateRef.value
@@ -39,15 +37,19 @@ export default function buildStore<
     },
   })
 
-  // computed getters
-  const computedGetters = {} as BoundStoreComputed<RawStoreComputed<StateValue>>
-  for (const fn in rawComputed) {
-    computedGetters[fn] = computed(() =>
-      rawComputed[fn].call(computedGetters, stateRef.value as DeepReadonly<S>)
+  Object.defineProperty(store, 'id', {
+    get() {
+      return id
+    },
+  })
+
+  const computedGetters = {} as BoundStoreComputed<RawStoreComputed<RootState>>
+  for (const name in rawComputed) {
+    computedGetters[name] = computed(() =>
+      rawComputed[name].call(computedGetters, stateRef.value as DeepReadonly<S>)
     )
   }
 
-  // bind actions to this context
   const boundActions = {} as BoundStoreActions<A>
   for (const name in rawActions) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,35 +58,85 @@ export default function buildStore<
     }
   }
 
-  // create store object
   store.computed = computedGetters as BoundStoreComputed<C>
   store.actions = boundActions as BoundStoreActions<A>
 
-  // wrap in use function
   function useStore() {
     return store
   }
 
-  // return
   return useStore
 }
 
-function buildState<S extends StateValue>(stateParam: (() => S) | S = () => ({} as S)) {
-  return function buildComputed<C extends RawStoreComputed<S>>(
-    rawComputed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>> = {} as C
+function bindId(id: string) {
+  return function bindState<S extends RootState>(
+    stateParam: (() => S) | S = () => ({} as S)
   ) {
-    return function buildActions<A extends RawStoreActions>(
-      rawActions: A & ThisType<MutableStore<S, C, A>> = {} as A
+    return function bindComputed<C extends RawStoreComputed<S>>(
+      rawComputed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>> = {} as C
     ) {
-      return buildStore(stateParam, rawComputed, rawActions)
+      return function bindActions<A extends RawStoreActions>(
+        rawActions: A & ThisType<MutableStore<S, C, A>> = {} as A
+      ) {
+        return _buildStore(id, stateParam, rawComputed, rawActions)
+      }
     }
   }
 }
 
-const buildComputed = buildState({ dave: 'patel', counter: 1 })
+function buildStore(
+  arg: string
+): <S extends RootState>(
+  stateParam?: S | (() => S)
+) => <C extends RawStoreComputed<S>>(
+  rawComputed?: C & ThisType<DeepReadonly<BoundStoreComputed<C>>>
+) => <A extends RawStoreActions>(
+  rawActions?: A & ThisType<MutableStore<S, C, A>>
+) => () => ImmutableStore<S, C, A>
+function buildStore<
+  S extends RootState,
+  C extends RawStoreComputed<S>,
+  A extends RawStoreActions
+>(arg: StoreConfig<S, C, A>): () => ImmutableStore<S, C, A>
+function buildStore<
+  S extends RootState,
+  C extends RawStoreComputed<S>,
+  A extends RawStoreActions
+>(arg: StoreConfig<S, C, A> | string) {
+  return typeof arg === 'string'
+    ? bindId(arg)
+    : _buildStore(arg.id, arg.state, arg.computed, arg.actions)
+}
+
+// _buildStore({
+//   id: 'test',
+//   state: { foo: 'bar' },
+//   computed: {
+//     fooBar(): string {
+//       return 'foo'
+//     },
+//     hello() {
+//       this.fooBar.value
+//       return 'Hello ' + this.fooBar.value + '!'
+//     },
+//     f: function (): string {
+//       return 'ban'
+//     },
+//   },
+//   actions: {
+//     myAction() {
+//       this.computed.hello.value
+//     },
+//   },
+// })
+
+const buildS = buildStore('dave store')
+
+const buildComputed = buildS({ dave: 'patel', counter: 1 })
 
 const buildActions = buildComputed({
-  doubleCounter(state): number {
+  doubleCounter(state) {
+    this.quadrupleCounter.value
     state.dave
     return state.counter * 2
   },
@@ -94,7 +146,7 @@ const buildActions = buildComputed({
   },
 })
 
-const useDaveStore = buildActions({
+const useCurriedStore = buildActions({
   myAction(): number {
     return this.computed.doubleCounter.value
   },
@@ -105,12 +157,18 @@ const useDaveStore = buildActions({
   },
 })
 
-const daveStore = useDaveStore()
+const daveStore = useCurriedStore()
 daveStore.computed.doubleCounter.value
+daveStore.actions.myAction()
 
-const useMyStore = buildStore(
-  () => ({ first: 'super', last: 'man', foo: { bar: 'baz' } }),
-  {
+const useMyStore = buildStore({
+  id: 'my store',
+  state: () => ({
+    first: 'super',
+    last: 'man',
+    foo: { bar: 'baz' },
+  }),
+  computed: {
     fullName(state) {
       this.nisha.value
       this.fullName.value
@@ -128,7 +186,7 @@ const useMyStore = buildStore(
       state.first
     },
   },
-  {
+  actions: {
     myAction() {
       this.computed.nisha.value
       this.actions.otherAction()
@@ -138,8 +196,8 @@ const useMyStore = buildStore(
       this.actions.myAction
       return 5
     },
-  }
-)
+  },
+})
 
 const myStore = useMyStore()
 myStore
