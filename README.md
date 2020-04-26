@@ -6,41 +6,51 @@ Design Goals:
 \- flux architecture
 \- Avoid monolithic state
 \- Automatically typed
-\- Opinionated about store design
+\- Opinionated store design
+
+---
+# !!! WARNING !!!
+Use only for experimentation, this is an extremely early work in progress.
 
 &nbsp;
-### Store / ComponentStore
-- state    (readonly singleton state tree)
-- patch/set
-- getters  (computed/state)
-- actions  (return promises? - does this happen automatically with async?)
+## Store
+property | function
+---|---
+state    | readonly singleton state tree
+patch    | Predefined action that assigns values from patch object
+perform  | Predefined action that performs specified collection mutator method
+computed | ComputedRefs generated from (this: computed, state) => val
+actions  | Can mutate the state freely, responsible for their own notifications
 
 &nbsp;
-### Depot / ModelStore
-- models  // get/filter/where/reject/etc .. stored in Map
-- patch   // patch(id, changes)
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// patch(model, changes)
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// patch(DepotQuery<T>, changes)
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;// patch({[K]: T})
-- getters
-- actions
+## Depot
+property | function
+---|---
+models   | iterable query with get/filter/where/reject/etc .. models stored in a Map
+&nbsp;   | contains own patch/perform batched methods
+patch    | patch(changes)
+&nbsp;   | patch(id, changes)
+&nbsp;   | patch(model, changes)
+&nbsp;   | patch(Iterable\<model>, changes)
+perform  | Contains similar overrides as patch
+computed | ComputedRefs generated from (this: computed, state) => val
+actions  | Can mutate the state freely, responsible for their own notifications
 
-Maintains a Map/Record<string, T>
-.models allows iteration
 
-
+&nbsp;
+&nbsp;
 ```
 const counterStore = useCounterStore()
 const userDepot = useUserDepot()
 
 return {
-    ...counterStore.state,
-    ...counterStore.getters,
+    state: counterStore.state, // state.value -- a reactive object
+    ...counterStore.computed, // { ComputedRef }
     ...counterStore.actions,
-    patchStore: counterStore.patch,
+    patch: counterStore.patch,
+    perform: counterStore.perform,
 
-    users: userDepot.models,	// DepotModels<User> -- iterating over models iterates over users.all
-    // for (model of models) { ...iterates all models }
+    users: userDepot.models  // DepotModels<User> -- iterates over all users
     // models.get(id);    : Model
     // models.all();      : DepotQuery<User>   // Array-like access and iteration, but limited API
     // users.sortBy(val_fn);  DepotQuery<User>
@@ -60,15 +70,4 @@ let item = items[id]
 item.name = "blender" // Error: Readonly!
 items.patch(id, {name: blender})
 items.patch(item, {name: blender})
-items.patch(filterFn, {name: blender})
 ```
-
-What about actions and so on for individual models?
-
-History module can have optional stack ids for multi-store usage if desired.
-
-naming:
-flux
-not monolithic - separate small chunks (branches vs maps)
-singletons vs models (stores, depots) (shop, depot)
-imported as needed..

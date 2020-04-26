@@ -4,9 +4,32 @@ import { ComputedRef } from 'vue'
 export type DeepReadonly<T> = { readonly [P in keyof T]: DeepReadonly<T[P]> }
 export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> }
 export type RootState = Record<string | number | symbol, any>
+type ArrayMutators =
+  | 'push'
+  | 'pop'
+  | 'splice'
+  | 'fill'
+  | 'sort'
+  | 'reverse'
+  | 'shift'
+  | 'unshift'
+type MapMutators = 'clear' | 'delete' | 'set'
+type SetMutators = 'add' | 'clear' | 'delete'
 
+export type DeepPartialMutator<S> = {
+  [k in keyof S]?: S[k] extends Array<infer T>
+    ? { [k in ArrayMutators]?: Parameters<Array<T>[k]> }
+    : S[k] extends Map<infer K, infer V>
+    ? { [k in MapMutators]?: Parameters<Map<K, V>[k]> }
+    : S[k] extends Set<infer T>
+    ? { [k in SetMutators]?: Parameters<Set<T>[k]> }
+    : never
+}
+
+// Uses: discriminate between state generator and state
+//       discriminate between value and nested state
 export function isRootState<R extends RootState>(a: unknown): a is R {
-  return !(typeof a === 'function')
+  return a && typeof a === 'object' && a !== null
 }
 
 export type RawStoreComputed<S extends RootState> = {

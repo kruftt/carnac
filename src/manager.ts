@@ -1,6 +1,9 @@
 import { GenericStore } from './types'
 type StoreRecord = Record<string, GenericStore>
 
+export const stores = {} as StoreRecord
+
+/*
 const providers: WeakMap<object, StoreRecord> = new WeakMap()
 
 let _providerKey: object = {}
@@ -32,3 +35,4 @@ export function getStore(id: string, providerKey?: object): GenericStore {
   if (!store) throw new Error('Invalid store id')
   return store
 }
+*/
