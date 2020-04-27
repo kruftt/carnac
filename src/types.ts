@@ -1,21 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ComputedRef } from 'vue'
 
-export type DeepReadonly<T> = { readonly [P in keyof T]: DeepReadonly<T[P]> }
-export type DeepPartial<T> = { [K in keyof T]?: DeepPartial<T[K]> }
-export type RootState = Record<string | number | symbol, any>
-type ArrayMutators =
-  | 'push'
-  | 'pop'
-  | 'splice'
-  | 'fill'
-  | 'sort'
-  | 'reverse'
-  | 'shift'
-  | 'unshift'
+export type RootState = Record<string, any>
+export type DeepReadonly<S> = { readonly [K in keyof S]: DeepReadonly<S[K]> }
+export type DeepPartial<S> = { [K in keyof S]?: DeepPartial<S[K]> }
 type MapMutators = 'clear' | 'delete' | 'set'
 type SetMutators = 'add' | 'clear' | 'delete'
-
+// prettier-ignore
+type ArrayMutators = 'push'|'pop'|'splice'|'fill'|'sort'|'reverse'|'shift'|'unshift'
 export type DeepPartialMutator<S> = {
   [k in keyof S]?: S[k] extends Array<infer T>
     ? { [k in ArrayMutators]?: Parameters<Array<T>[k]> }
@@ -26,9 +18,8 @@ export type DeepPartialMutator<S> = {
     : never
 }
 
-// Uses: discriminate between state generator and state
-//       discriminate between value and nested state
-export function isRootState<R extends RootState>(a: unknown): a is R {
+// Uses: patch: value vs nested state
+export function isRootState<T>(a: unknown): a is RootState {
   return a && typeof a === 'object' && a !== null
 }
 
@@ -36,7 +27,6 @@ export type RawStoreComputed<S extends RootState> = {
   [getter: string]: (state: DeepReadonly<S>) => any
 }
 
-// using extends/infer prevents the type signature from containing the state object twice
 export type BoundStoreComputed<C> = C extends RawStoreComputed<infer S>
   ? { [k in keyof C]: ComputedRef<ReturnType<C[k]>> }
   : never
@@ -49,46 +39,47 @@ export type BoundStoreActions<A extends RawStoreActions> = {
   [k in keyof A]: (...args: Parameters<A[k]>) => ReturnType<A[k]>
 }
 
-export interface StoreEvent<store> {
-  type: string
-  store: store extends ImmutableStore<infer S, infer C, infer A>
-    ? ImmutableStore<S, C, A>
-    : never
-}
-
-type BaseStore<
-  S extends RootState,
-  C extends RawStoreComputed<S>,
-  A extends RawStoreActions
-> = {
+type BaseStore<S extends RootState, A extends RawStoreActions> = {
   id: string
   actions: BoundStoreActions<A>
-  patch: (changes: DeepPartial<S>) => DeepPartial<S>
-  notify: (evt: StoreEvent<ImmutableStore<S, C, A>>) => void
+  patch: (changes: DeepPartial<S>) => void
+  notify: (evt: StoreEvent) => void
+  subscribe: (callback: StoreSubscriber<S>) => () => void
+  // bundle: () =>
 }
-
-export type GenericStore = BaseStore<
-  RootState,
-  RawStoreComputed<RootState>,
-  RawStoreActions
->
 
 export type MutableStore<
   S extends RootState,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
-> = BaseStore<S, C, A> & {
+> = BaseStore<S, A> & {
   state: S
   computed: BoundStoreComputed<C>
 }
 
-export type ImmutableStore<
+export type Store<
   S extends RootState,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
-> = BaseStore<S, C, A> & {
-  state: DeepReadonly<S>
-  computed: DeepReadonly<BoundStoreComputed<C>>
+> = BaseStore<S, A> & {
+  readonly state: DeepReadonly<S>
+  computed: Readonly<BoundStoreComputed<C>>
+}
+
+export type GenericStore = Store<any, RawStoreComputed<any>, RawStoreActions>
+
+export interface StoreEvent {
+  type: string
+}
+
+export interface StorePatchEvent<S extends RootState> extends StoreEvent {
+  type: 'patch'
+  patch: DeepPartial<S>
+  oldValues: DeepPartial<S>
+}
+
+export type StoreSubscriber<S extends RootState> = {
+  (evt: StoreEvent, state: DeepReadonly<S>): void
 }
 
 export type MutableDepotModels<M> = {
@@ -157,13 +148,13 @@ export type ImmutableDepot<
 }
 
 export type StoreConfig<
-  S extends RootState,
+  S,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
 > = {
   id: string
-  state: S | (() => S)
-  computed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>>
+  state: () => S
+  computed: C & ThisType<Readonly<BoundStoreComputed<C>>>
   actions: A & ThisType<MutableStore<S, C, A>>
 }
 

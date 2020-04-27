@@ -1,18 +1,19 @@
+import { Ref, ref, computed, toRefs } from 'vue'
 import { stores } from './manager'
+import { applyPatch } from './patch'
 import {
   BoundStoreActions,
   BoundStoreComputed,
   DeepReadonly,
-  ImmutableStore,
-  MutableStore,
+  Store,
   RawStoreActions,
   RawStoreComputed,
   RootState,
-  isRootState,
   StoreConfig,
-  DeepPartial,
+  StoreEvent,
+  StoreSubscriber,
+  StorePatchEvent,
 } from './types'
-import { Ref, ref, computed } from 'vue'
 
 // function _patch<T>(source: DeepPartial<T>, target: T) {
 // check if plain object // RootState!
@@ -25,14 +26,20 @@ function _buildStore<
   A extends RawStoreActions
 >(
   id: string,
-  stateParam: S | (() => S) = () => ({} as S),
+  stateParam: () => S = () => ({} as S),
   rawComputed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>> = {} as C,
-  rawActions: A & ThisType<MutableStore<S, C, A>> = {} as A
-): () => ImmutableStore<S, C, A> {
-  const store: ImmutableStore<S, C, A> = {} as ImmutableStore<S, C, A>
-  const stateRef: Ref<S> = isRootState<S>(stateParam)
-    ? ref(stateParam)
-    : ref(stateParam())
+  rawActions: A & ThisType<Store<S, C, A>> = {} as A
+): () => Store<S, C, A> {
+  type UserStore = Store<S, C, A>
+  const store = {} as UserStore
+
+  Object.defineProperty(store, 'id', {
+    get() {
+      return id
+    },
+  })
+
+  const stateRef = ref(stateParam()) as Ref<S>
 
   Object.defineProperty(store, 'state', {
     get() {
@@ -43,17 +50,19 @@ function _buildStore<
     },
   })
 
-  Object.defineProperty(store, 'id', {
-    get() {
-      return id
-    },
-  })
+  store.patch = function (patch) {
+    const oldValues = applyPatch<S>(stateRef.value, patch)
+    const evt: StorePatchEvent<S> = {
+      type: 'patch',
+      patch,
+      oldValues,
+    }
+    store.notify(evt)
+  }
 
-  // store.patch = function (changes: DeepPartial<S>): DeepPartial<S> {}
+  // notify: (evt: StoreEvent<DeepReadonly<Store<S, C, A>>>) => void
 
-  // notify: (evt: StoreEvent<ImmutableStore<S, C, A>>) => void
-
-  const computedGetters = {} as BoundStoreComputed<RawStoreComputed<RootState>>
+  const computedGetters = {} as BoundStoreComputed<RawStoreComputed<S>>
   for (const name in rawComputed) {
     computedGetters[name] = computed(() =>
       rawComputed[name].call(computedGetters, stateRef.value as DeepReadonly<S>)
@@ -64,26 +73,54 @@ function _buildStore<
   for (const name in rawActions) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     boundActions[name] = function (...args: Array<any>) {
-      return rawActions[name].apply(store as MutableStore<S, C, A>, args)
+      return rawActions[name].apply(store, args)
     }
   }
 
-  store.computed = computedGetters as BoundStoreComputed<C>
-  store.actions = boundActions as BoundStoreActions<A>
-  stores[id] = store
+  const subscribers: StoreSubscriber<S>[] = []
+  store.subscribe = function (callback: StoreSubscriber<S>) {
+    subscribers.push(callback)
+    return function unsubscribe() {
+      subscribers.splice(subscribers.indexOf(callback), 1)
+    }
+  }
 
+  store.notify = function (evt: StoreEvent) {
+    subscribers.forEach((callback) =>
+      callback(evt, stateRef.value as DeepReadonly<S>)
+    )
+  }
+
+  const bundle = {
+    ...toRefs(stateRef.value),
+    ...computedGetters,
+    ...boundActions,
+  }
+  Object.defineProperty(store, 'bundle', {
+    get() {
+      return bundle
+    },
+  })
+
+  store.computed = computedGetters as BoundStoreComputed<C>
+  store.actions = boundActions
+
+  stores[id] = store
   return () => store
 }
 
-function bindId(id: string) {
-  return function bindState<S extends RootState>(
-    stateParam: (() => S) | S = () => ({} as S)
+// prettier-ignore
+function bindId(
+  id: string
+) {
+  return function bindState<S>(
+    stateParam: () => S = () => ({} as S)
   ) {
     return function bindComputed<C extends RawStoreComputed<S>>(
       rawComputed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>> = {} as C
     ) {
       return function bindActions<A extends RawStoreActions>(
-        rawActions: A & ThisType<MutableStore<S, C, A>> = {} as A
+        rawActions: A & ThisType<Store<S, C, A>> = {} as A
       ) {
         return _buildStore(id, stateParam, rawComputed, rawActions)
       }
@@ -93,19 +130,19 @@ function bindId(id: string) {
 
 // prettier-ignore
 function buildStore(arg: string):
-  <S extends RootState>(stateParam?: S | (() => S)) =>
+  <S>(stateParam?: () => S) =>
   <C extends RawStoreComputed<S>>(rawComputed?: C & ThisType<DeepReadonly<BoundStoreComputed<C>>>) =>
-  <A extends RawStoreActions>(rawActions?: A & ThisType<MutableStore<S, C, A>>) =>
-  () => ImmutableStore<S, C, A>
+  <A extends RawStoreActions>(rawActions?: A & ThisType<Store<S, C, A>>) =>
+  () => Store<S, C, A>
 // prettier-ignore
 function buildStore<
-  S extends RootState,
+  S,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
->(arg: StoreConfig<S, C, A>): () => ImmutableStore<S, C, A>
+>(arg: StoreConfig<S, C, A>): () => Store<S, C, A>
 // prettier-ignore
 function buildStore <
-  S extends RootState,
+  S,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
 > (arg: StoreConfig<S, C, A> | string)
@@ -113,27 +150,49 @@ function buildStore <
   return (typeof arg === 'string') ? bindId(arg) : _buildStore(arg.id, arg.state, arg.computed, arg.actions)
 }
 
-// _buildStore({
-//   id: 'test',
-//   state: { foo: 'bar' },
-//   computed: {
-//     fooBar(): string {
-//       return 'foo'
-//     },
-//     hello() {
-//       this.fooBar.value
-//       return 'Hello ' + this.fooBar.value + '!'
-//     },
-//     f: function (): string {
-//       return 'ban'
-//     },
-//   },
-//   actions: {
-//     myAction() {
-//       this.computed.hello.value
-//     },
-//   },
-// })
+type _S = {
+  foo: string
+  bar: {
+    (): boolean
+    a: string
+  }
+}
+
+function _bar() {
+  return true
+}
+_bar.a = 'bar prop'
+
+function _bs(): _S {
+  return {
+    foo: 'bar',
+    bar: _bar,
+  }
+}
+
+buildStore({
+  id: 'test',
+  state: _bs,
+  computed: {
+    fooBar(state): string {
+      this.hello.value
+      state.bar.a
+      return 'foo'
+    },
+    hello(): string {
+      this.fooBar.value
+      return 'Hello ' + this.fooBar.value + '!'
+    },
+    f: function (): string {
+      return 'ban'
+    },
+  },
+  actions: {
+    myAction() {
+      this.computed.hello.value
+    },
+  },
+})
 
 // const buildS = buildStore('dave store')
 

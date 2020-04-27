@@ -4,9 +4,9 @@ Carnac - Vue 3 State Management
 
 Design Goals:
 \- flux architecture
-\- Avoid monolithic state
+\- Polylithic state
 \- Automatically typed
-\- Opinionated store design
+\- Reduce boilerplate code
 
 ---
 # !!! WARNING !!!
@@ -41,6 +41,7 @@ actions  | Can mutate the state freely, responsible for their own notifications
 &nbsp;
 ```
 const counterStore = useCounterStore()
+const bundle = counterStore.bundle()
 const userDepot = useUserDepot()
 
 return {
