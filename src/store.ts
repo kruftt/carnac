@@ -7,12 +7,16 @@ import {
   DeepReadonly,
   Store,
   RawStoreActions,
+  RawStoreGetter,
   RawStoreComputed,
   RootState,
   StoreConfig,
   StoreEvent,
   StoreSubscriber,
   StorePatchEvent,
+  MutableStore,
+  isPlainObject,
+  RawStorePropertyAccessors,
 } from './types'
 
 // function _patch<T>(source: DeepPartial<T>, target: T) {
@@ -28,7 +32,7 @@ function _buildStore<
   id: string,
   stateParam: () => S = () => ({} as S),
   rawComputed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>> = {} as C,
-  rawActions: A & ThisType<Store<S, C, A>> = {} as A
+  rawActions: A & ThisType<MutableStore<S, C, A>> = {} as A
 ): () => Store<S, C, A> {
   type UserStore = Store<S, C, A>
   const store = {} as UserStore
@@ -62,11 +66,22 @@ function _buildStore<
 
   // notify: (evt: StoreEvent<DeepReadonly<Store<S, C, A>>>) => void
 
-  const computedGetters = {} as BoundStoreComputed<RawStoreComputed<S>>
+  const boundComputed = {} as BoundStoreComputed<RawStoreComputed<S>>
   for (const name in rawComputed) {
-    computedGetters[name] = computed(() =>
-      rawComputed[name].call(computedGetters, stateRef.value as DeepReadonly<S>)
-    )
+    const rawProp = rawComputed[name] as
+      | RawStoreGetter<S>
+      | RawStorePropertyAccessors<S>
+    if (isPlainObject<RawStorePropertyAccessors<S>>(rawProp)) {
+      const { get, set } = rawProp
+      boundComputed[name] = computed({
+        get: () => get.call(boundComputed, stateRef.value),
+        set: (val) => set.call(boundComputed, stateRef.value, val),
+      })
+    } else {
+      boundComputed[name] = computed(() =>
+        rawProp.call(boundComputed, stateRef.value as DeepReadonly<S>)
+      )
+    }
   }
 
   const boundActions = {} as BoundStoreActions<A>
@@ -93,7 +108,7 @@ function _buildStore<
 
   const bundle = {
     ...toRefs(stateRef.value),
-    ...computedGetters,
+    ...boundComputed,
     ...boundActions,
   }
   Object.defineProperty(store, 'bundle', {
@@ -102,7 +117,7 @@ function _buildStore<
     },
   })
 
-  store.computed = computedGetters as BoundStoreComputed<C>
+  store.computed = boundComputed as BoundStoreComputed<C>
   store.actions = boundActions
 
   stores[id] = store
@@ -174,8 +189,21 @@ buildStore({
   id: 'test',
   state: _bs,
   computed: {
+    getSet: {
+      get() {
+        // state.foo = 'test'  // Readonly!
+        this.fooBar.value
+        return 5
+      },
+      set(state) {
+        this
+        state.foo = 'test'
+        return 5
+      },
+    },
     fooBar(state): string {
       this.hello.value
+      this.getSet.value
       state.bar.a
       return 'foo'
     },
@@ -190,6 +218,10 @@ buildStore({
   actions: {
     myAction() {
       this.computed.hello.value
+      return 45
+    },
+    other() {
+      this.actions.myAction()
     },
   },
 })

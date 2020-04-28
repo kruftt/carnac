@@ -2,12 +2,16 @@
 import { ComputedRef } from 'vue'
 
 export type RootState = Record<string, any>
-export type DeepReadonly<S> = { readonly [K in keyof S]: DeepReadonly<S[K]> }
-export type DeepPartial<S> = { [K in keyof S]?: DeepPartial<S[K]> }
+export type DeepReadonly<S extends RootState> = {
+  readonly [K in keyof S]: DeepReadonly<S[K]>
+}
+export type DeepPartial<S extends RootState> = {
+  [K in keyof S]?: DeepPartial<S[K]>
+}
+// prettier-ignore
+type ArrayMutators = 'push' | 'pop' | 'splice' | 'fill' | 'sort' | 'reverse' | 'shift' | 'unshift'
 type MapMutators = 'clear' | 'delete' | 'set'
 type SetMutators = 'add' | 'clear' | 'delete'
-// prettier-ignore
-type ArrayMutators = 'push'|'pop'|'splice'|'fill'|'sort'|'reverse'|'shift'|'unshift'
 export type DeepPartialMutator<S> = {
   [k in keyof S]?: S[k] extends Array<infer T>
     ? { [k in ArrayMutators]?: Parameters<Array<T>[k]> }
@@ -15,20 +19,35 @@ export type DeepPartialMutator<S> = {
     ? { [k in MapMutators]?: Parameters<Map<K, V>[k]> }
     : S[k] extends Set<infer T>
     ? { [k in SetMutators]?: Parameters<Set<T>[k]> }
-    : never
+    : DeepPartialMutator<S[k]>
 }
-
-// Uses: patch: value vs nested state
-export function isRootState<T>(a: unknown): a is RootState {
+export function isPlainObject<T>(a: unknown): a is T {
   return a && typeof a === 'object' && a !== null
 }
 
-export type RawStoreComputed<S extends RootState> = {
-  [getter: string]: (state: DeepReadonly<S>) => any
+export type RawStoreGetter<S extends RootState> = {
+  (state: DeepReadonly<S>): any
 }
 
+export type RawStorePropertyAccessors<S extends RootState> = {
+  get: RawStoreGetter<S>
+  set: (state: S, value: any) => any
+}
+
+export type RawStoreComputed<S extends RootState> = {
+  [getter: string]: RawStoreGetter<S> | RawStorePropertyAccessors<S>
+}
+
+type BoundStoreComputedProperty<P> = P extends RawStoreGetter<infer S>
+  ? ComputedRef<ReturnType<P>>
+  : P extends RawStorePropertyAccessors<infer S>
+  ? ComputedRef<ReturnType<P['get']>>
+  : never
+
 export type BoundStoreComputed<C> = C extends RawStoreComputed<infer S>
-  ? { [k in keyof C]: ComputedRef<ReturnType<C[k]>> }
+  ? {
+      [K in keyof C]: BoundStoreComputedProperty<C[K]>
+    }
   : never
 
 export type RawStoreActions = {
@@ -39,9 +58,8 @@ export type BoundStoreActions<A extends RawStoreActions> = {
   [k in keyof A]: (...args: Parameters<A[k]>) => ReturnType<A[k]>
 }
 
-type BaseStore<S extends RootState, A extends RawStoreActions> = {
+interface BaseStore<S extends RootState> {
   id: string
-  actions: BoundStoreActions<A>
   patch: (changes: DeepPartial<S>) => void
   notify: (evt: StoreEvent) => void
   subscribe: (callback: StoreSubscriber<S>) => () => void
@@ -52,21 +70,34 @@ export type MutableStore<
   S extends RootState,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
-> = BaseStore<S, A> & {
+> = BaseStore<S> & {
   state: S
   computed: BoundStoreComputed<C>
+  actions: BoundStoreActions<A>
 }
 
 export type Store<
   S extends RootState,
   C extends RawStoreComputed<S>,
   A extends RawStoreActions
-> = BaseStore<S, A> & {
+> = BaseStore<S> & {
   readonly state: DeepReadonly<S>
   computed: Readonly<BoundStoreComputed<C>>
+  actions: BoundStoreActions<A>
 }
 
 export type GenericStore = Store<any, RawStoreComputed<any>, RawStoreActions>
+
+export type StoreConfig<
+  S,
+  C extends RawStoreComputed<S>,
+  A extends RawStoreActions
+> = {
+  id: string
+  state: () => S
+  computed: C & ThisType<Readonly<BoundStoreComputed<C>>>
+  actions: A & ThisType<MutableStore<S, C, A>>
+}
 
 export interface StoreEvent {
   type: string
@@ -82,7 +113,7 @@ export type StoreSubscriber<S extends RootState> = {
   (evt: StoreEvent, state: DeepReadonly<S>): void
 }
 
-export type MutableDepotModels<M> = {
+export interface MutableDepotModels<M> {
   get: (id: string) => M | null
   where: () => MutableDepotModels<M>
   first: (n: number) => MutableDepotModels<M>
@@ -90,19 +121,18 @@ export type MutableDepotModels<M> = {
   [Symbol.iterator]: IterableIterator<M>
 }
 
-export type ImmutableDepotModels<M> = {
+export interface ImmutableDepotModels<M> {
   get: (id: string) => Readonly<M> | null
   where: () => ImmutableDepotModels<M>
   first: (n: number) => ImmutableDepotModels<M>
-  patch: (changes: DeepPartial<M>) => Array<DeepPartial<M>>
   [Symbol.iterator]: IterableIterator<Readonly<M>>
 }
 
-export type RawDepotComputed<M> = {
+export type RawDepotGetter<M> = {
   [rawComputed: string]: (models: ImmutableDepotModels<M>) => any
 }
 
-export type ComputedDepotGetters<M, C extends RawDepotComputed<M>> = {
+export type BoundDepotComputed<M, C extends RawDepotGetter<M>> = {
   [k in keyof C]: ComputedRef<ReturnType<C[k]>>
 }
 
@@ -121,19 +151,19 @@ export interface DepotEvent<_Depot> {
     : never
 }
 
-export type BaseDepot<
+export interface BaseDepot<
   M,
-  C extends RawDepotComputed<M>,
+  C extends RawDepotGetter<M>,
   A extends RawDepotActions
-> = {
-  getters: ComputedDepotGetters<M, C>
+> {
+  getters: BoundDepotComputed<M, C>
   actions: BoundDepotActions<A>
   notify: (evt: DepotEvent<ImmutableDepot<M, C, A>>) => void
 }
 
 export type MutableDepot<
   M,
-  C extends RawDepotComputed<M>,
+  C extends RawDepotGetter<M>,
   A extends RawDepotActions
 > = BaseDepot<M, C, A> & {
   models: MutableDepotModels<M>
@@ -141,21 +171,10 @@ export type MutableDepot<
 
 export type ImmutableDepot<
   M,
-  C extends RawDepotComputed<M>,
+  C extends RawDepotGetter<M>,
   A extends RawDepotActions
 > = BaseDepot<M, C, A> & {
   models: ImmutableDepotModels<M>
-}
-
-export type StoreConfig<
-  S,
-  C extends RawStoreComputed<S>,
-  A extends RawStoreActions
-> = {
-  id: string
-  state: () => S
-  computed: C & ThisType<Readonly<BoundStoreComputed<C>>>
-  actions: A & ThisType<MutableStore<S, C, A>>
 }
 
 /*

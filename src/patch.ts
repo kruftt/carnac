@@ -1,4 +1,4 @@
-import { isRootState, DeepPartial, RootState } from './types'
+import { isPlainObject, DeepPartial, RootState } from './types'
 
 export function applyPatch<S extends RootState>(
   target: DeepPartial<S>,
@@ -8,7 +8,10 @@ export function applyPatch<S extends RootState>(
   for (const key in patch) {
     const targetValue = target[key]
     const newValue = patch[key]
-    if (isRootState(newValue) && isRootState(targetValue)) {
+    if (
+      isPlainObject<RootState>(newValue) &&
+      isPlainObject<RootState>(targetValue)
+    ) {
       oldValues[key] = applyPatch(targetValue, newValue)
     } else {
       oldValues[key] = targetValue
