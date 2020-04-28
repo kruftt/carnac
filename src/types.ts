@@ -109,6 +109,12 @@ export interface StorePatchEvent<S extends RootState> extends StoreEvent {
   oldValues: DeepPartial<S>
 }
 
+export interface StoreComputedPropertyEvent extends StoreEvent {
+  type: 'computed'
+  value: any
+  oldValue: any
+}
+
 export type StoreSubscriber<S extends RootState> = {
   (evt: StoreEvent, state: DeepReadonly<S>): void
 }

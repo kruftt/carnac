@@ -17,12 +17,8 @@ import {
   MutableStore,
   isPlainObject,
   RawStorePropertyAccessors,
+  StoreComputedPropertyEvent,
 } from './types'
-
-// function _patch<T>(source: DeepPartial<T>, target: T) {
-// check if plain object // RootState!
-// recursive cache + copy
-// }
 
 function _buildStore<
   S extends RootState,
@@ -64,8 +60,6 @@ function _buildStore<
     store.notify(evt)
   }
 
-  // notify: (evt: StoreEvent<DeepReadonly<Store<S, C, A>>>) => void
-
   const boundComputed = {} as BoundStoreComputed<RawStoreComputed<S>>
   for (const name in rawComputed) {
     const rawProp = rawComputed[name] as
@@ -75,7 +69,17 @@ function _buildStore<
       const { get, set } = rawProp
       boundComputed[name] = computed({
         get: () => get.call(boundComputed, stateRef.value),
-        set: (val) => set.call(boundComputed, stateRef.value, val),
+        set: function (val) {
+          const oldValue = get.call(boundComputed, stateRef.value)
+          const result = set.call(boundComputed, stateRef.value, val)
+          const evt: StoreComputedPropertyEvent = {
+            type: 'computed',
+            value: val,
+            oldValue,
+          }
+          store.notify(evt)
+          return result
+        },
       })
     } else {
       boundComputed[name] = computed(() =>
@@ -106,14 +110,13 @@ function _buildStore<
     )
   }
 
-  const bundle = {
-    ...toRefs(stateRef.value),
-    ...boundComputed,
-    ...boundActions,
-  }
   Object.defineProperty(store, 'bundle', {
     get() {
-      return bundle
+      return {
+        ...toRefs(stateRef.value),
+        ...boundComputed,
+        ...boundActions,
+      }
     },
   })
 
