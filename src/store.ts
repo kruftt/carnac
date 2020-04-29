@@ -1,4 +1,4 @@
-import { Ref, ref, computed, toRefs } from 'vue'
+import { Ref, ref, computed, toRefs, watch } from 'vue'
 import { stores } from './manager'
 import { applyPatch } from './patch'
 import {
@@ -16,6 +16,7 @@ import {
   isPlainObject,
   RawStoreWritableComputed,
   StoreComputedPropertyEvent,
+  StoreAssignmentEvent,
 } from './types'
 
 function _buildStore<
@@ -47,14 +48,47 @@ function _buildStore<
     },
   })
 
+  const subscribers: StoreSubscriber<S>[] = []
+  store.subscribe = function (callback: StoreSubscriber<S>) {
+    subscribers.push(callback)
+    return function unsubscribe() {
+      subscribers.splice(subscribers.indexOf(callback), 1)
+    }
+  }
+
+  store.notify = function <Evt extends StoreEvent>(evt: Evt) {
+    subscribers.forEach((callback) => callback(evt, stateRef.value))
+  }
+  const notify = store.notify
+
+  let actionIsActive = false
+  watch(
+    () => stateRef.value,
+    () => {
+      if (!actionIsActive) {
+        const evt: StoreAssignmentEvent = {
+          type: 'assignment',
+        }
+        notify(evt)
+      }
+    },
+    {
+      deep: true,
+      flush: 'sync',
+    }
+  )
+
   store.patch = function (patch) {
+    actionIsActive = true
     const oldValues = applyPatch<S>(stateRef.value, patch)
     const evt: StorePatchEvent<S> = {
       type: 'patch',
       patch,
       oldValues,
     }
-    store.notify(evt)
+    notify(evt)
+    actionIsActive = false
+    return oldValues
   }
 
   const boundComputed = {} as BoundStoreComputed<RawStoreComputedProps<S>>
@@ -67,6 +101,7 @@ function _buildStore<
       boundComputed[name] = computed({
         get: () => get.call(boundComputed, stateRef.value),
         set: function (val) {
+          actionIsActive = true
           const oldValue = get.call(boundComputed, stateRef.value)
           const result = set.call(boundComputed, stateRef.value, val)
           const evt: StoreComputedPropertyEvent = {
@@ -74,7 +109,8 @@ function _buildStore<
             value: val,
             oldValue,
           }
-          store.notify(evt)
+          notify(evt)
+          actionIsActive = false
           return result
         },
       })
@@ -84,25 +120,17 @@ function _buildStore<
       )
     }
   }
+  store.computed = boundComputed as BoundStoreComputed<C>
 
-  const boundActions = {} as BoundStoreActions<A>
+  const boundActions = (store.actions = {} as BoundStoreActions<A>)
   for (const name in rawActions) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     boundActions[name] = function (...args: Array<any>) {
-      return rawActions[name].apply(store, args)
+      actionIsActive = true
+      const result = rawActions[name].apply(store, args)
+      actionIsActive = false
+      return result
     }
-  }
-
-  const subscribers: StoreSubscriber<S>[] = []
-  store.subscribe = function (callback: StoreSubscriber<S>) {
-    subscribers.push(callback)
-    return function unsubscribe() {
-      subscribers.splice(subscribers.indexOf(callback), 1)
-    }
-  }
-
-  store.notify = function (evt: StoreEvent) {
-    subscribers.forEach((callback) => callback(evt, stateRef.value))
   }
 
   store.bundle = function () {
@@ -112,9 +140,6 @@ function _buildStore<
       ...boundActions,
     }
   }
-
-  store.computed = boundComputed as BoundStoreComputed<C>
-  store.actions = boundActions
 
   stores[id] = store
   return () => store

@@ -65,8 +65,8 @@ export type Store<
   A extends RawStoreActions
 > = {
   id: string
-  patch: (changes: DeepPartial<S>) => void
-  notify: (evt: StoreEvent) => void
+  patch: (changes: DeepPartial<S>) => DeepPartial<S>
+  notify: <Evt extends StoreEvent>(evt: Evt) => void
   subscribe: (callback: StoreSubscriber<S>) => () => void
   state: S
   computed: BoundStoreComputed<C>
@@ -97,6 +97,10 @@ export type StoreConfig<
 
 export interface StoreEvent {
   type: string
+}
+
+export interface StoreAssignmentEvent extends StoreEvent {
+  type: 'assignment'
 }
 
 export interface StorePatchEvent<S extends RootState> extends StoreEvent {
