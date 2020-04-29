@@ -10,13 +10,13 @@ import {
   RawStoreComputedProps,
   RootState,
   StoreConfig,
-  StoreEvent,
   StoreSubscriber,
   StorePatchEvent,
   isPlainObject,
   RawStoreWritableComputed,
   StoreComputedPropertyEvent,
   StoreAssignmentEvent,
+  StoreEvent,
 } from './types'
 
 function _buildStore<
@@ -56,16 +56,26 @@ function _buildStore<
     }
   }
 
-  store.notify = function <Evt extends StoreEvent>(evt: Evt) {
+  store.notify = function (evt) {
     subscribers.forEach((callback) => callback(evt, stateRef.value))
   }
   const notify = store.notify
 
-  let actionIsActive = false
+  let activeBatch = false
+  store.startBatch = function () {
+    activeBatch = true
+  }
+
+  store.finishBatch = function <Evt extends StoreEvent>(batchEvent: Evt) {
+    if (batchEvent !== null) notify(batchEvent)
+    activeBatch = false
+  }
+
+  let activeMutation = false
   watch(
     () => stateRef.value,
     () => {
-      if (!actionIsActive) {
+      if (!activeBatch && !activeMutation) {
         const evt: StoreAssignmentEvent = {
           type: 'assignment',
         }
@@ -79,7 +89,7 @@ function _buildStore<
   )
 
   store.patch = function (patch) {
-    actionIsActive = true
+    activeMutation = true
     const oldValues = applyPatch<S>(stateRef.value, patch)
     const evt: StorePatchEvent<S> = {
       type: 'patch',
@@ -87,7 +97,7 @@ function _buildStore<
       oldValues,
     }
     notify(evt)
-    actionIsActive = false
+    activeMutation = false
     return oldValues
   }
 
@@ -101,7 +111,7 @@ function _buildStore<
       boundComputed[name] = computed({
         get: () => get.call(boundComputed, stateRef.value),
         set: function (val) {
-          actionIsActive = true
+          activeMutation = true
           const oldValue = get.call(boundComputed, stateRef.value)
           const result = set.call(boundComputed, stateRef.value, val)
           const evt: StoreComputedPropertyEvent = {
@@ -110,7 +120,7 @@ function _buildStore<
             oldValue,
           }
           notify(evt)
-          actionIsActive = false
+          activeMutation = false
           return result
         },
       })
@@ -126,18 +136,18 @@ function _buildStore<
   for (const name in rawActions) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     boundActions[name] = function (...args: Array<any>) {
-      actionIsActive = true
       const result = rawActions[name].apply(store, args)
-      actionIsActive = false
       return result
     }
   }
 
   store.bundle = function () {
     return {
-      ...toRefs(store.state),
+      ...toRefs(stateRef.value),
       ...(boundComputed as BoundStoreComputed<C>),
       ...boundActions,
+      patch: store.patch,
+      // perform: store.perform
     }
   }
 

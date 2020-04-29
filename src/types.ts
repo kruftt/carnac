@@ -67,14 +67,15 @@ export type Store<
   id: string
   patch: (changes: DeepPartial<S>) => DeepPartial<S>
   notify: <Evt extends StoreEvent>(evt: Evt) => void
+  startBatch: () => void
+  finishBatch: <Evt extends StoreEvent>(evt: Evt) => void
   subscribe: (callback: StoreSubscriber<S>) => () => void
   state: S
   computed: BoundStoreComputed<C>
   actions: BoundStoreActions<A>
-  bundle: () => {
-    [K in keyof S]: Ref<S[K]>
-  } &
-    BoundStoreComputed<C> &
+  bundle: () => { [K in keyof S]: Ref<S[K]> } & {
+    patch: (changes: DeepPartial<S>) => DeepPartial<S>
+  } & BoundStoreComputed<C> &
     BoundStoreActions<A>
 }
 
@@ -182,39 +183,3 @@ export type ImmutableDepot<
 > = BaseDepot<M, C, A> & {
   models: ImmutableDepotModels<M>
 }
-
-/*
-const myStoreObject: StoreConfig<S, C, A> = {
-  id: 'mystore',
-  state: { first: 'super', last: 'man', foo: { bar: 'baz' } },
-  computed: {
-    fullName(state) {
-      this.nisha.value
-      this.fullName.value
-      return state.first + ' ' + state.last
-    },
-    greeting() {
-      return 'greetings ' + this.fullName.value
-    },
-    nisha() {
-      this.fullName.value
-      this.greeting.value
-      return 'Nisha!'
-    },
-    test: (state) => {
-      state.first
-    },
-  },
-  actions: {
-    myAction() {
-      this.computed.nisha.value
-      this.actions.otherAction()
-      return 4
-    },
-    otherAction() {
-      this.actions.myAction
-      return 5
-    },
-  },
-}
-*/
