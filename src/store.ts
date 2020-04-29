@@ -7,8 +7,8 @@ import {
   DeepReadonly,
   Store,
   RawStoreActions,
-  RawStoreGetter,
-  RawStoreComputed,
+  RawStoreComputedGetter,
+  RawStoreComputedProps,
   RootState,
   StoreConfig,
   StoreEvent,
@@ -16,13 +16,13 @@ import {
   StorePatchEvent,
   MutableStore,
   isPlainObject,
-  RawStorePropertyAccessors,
+  RawStoreComputedWritable,
   StoreComputedPropertyEvent,
 } from './types'
 
 function _buildStore<
   S extends RootState,
-  C extends RawStoreComputed<S>,
+  C extends RawStoreComputedProps<S>,
   A extends RawStoreActions
 >(
   id: string,
@@ -30,8 +30,7 @@ function _buildStore<
   rawComputed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>> = {} as C,
   rawActions: A & ThisType<MutableStore<S, C, A>> = {} as A
 ): () => Store<S, C, A> {
-  type UserStore = Store<S, C, A>
-  const store = {} as UserStore
+  const store = {} as Store<S, C, A>
 
   Object.defineProperty(store, 'id', {
     get() {
@@ -60,12 +59,12 @@ function _buildStore<
     store.notify(evt)
   }
 
-  const boundComputed = {} as BoundStoreComputed<RawStoreComputed<S>>
+  const boundComputed = {} as BoundStoreComputed<RawStoreComputedProps<S>>
   for (const name in rawComputed) {
     const rawProp = rawComputed[name] as
-      | RawStoreGetter<S>
-      | RawStorePropertyAccessors<S>
-    if (isPlainObject<RawStorePropertyAccessors<S>>(rawProp)) {
+      | RawStoreComputedGetter<S>
+      | RawStoreComputedWritable<S>
+    if (isPlainObject<RawStoreComputedWritable<S>>(rawProp)) {
       const { get, set } = rawProp
       boundComputed[name] = computed({
         get: () => get.call(boundComputed, stateRef.value),
@@ -83,7 +82,7 @@ function _buildStore<
       })
     } else {
       boundComputed[name] = computed(() =>
-        rawProp.call(boundComputed, stateRef.value as DeepReadonly<S>)
+        rawProp.call(boundComputed, stateRef.value)
       )
     }
   }
@@ -110,15 +109,13 @@ function _buildStore<
     )
   }
 
-  Object.defineProperty(store, 'bundle', {
-    get() {
-      return {
-        ...toRefs(stateRef.value),
-        ...boundComputed,
-        ...boundActions,
-      }
-    },
-  })
+  store.bundle = function () {
+    return {
+      ...toRefs(store.state),
+      ...(boundComputed as BoundStoreComputed<C>),
+      ...boundActions,
+    }
+  }
 
   store.computed = boundComputed as BoundStoreComputed<C>
   store.actions = boundActions
@@ -134,7 +131,7 @@ function bindId(
   return function bindState<S>(
     stateParam: () => S = () => ({} as S)
   ) {
-    return function bindComputed<C extends RawStoreComputed<S>>(
+    return function bindComputed<C extends RawStoreComputedProps<S>>(
       rawComputed: C & ThisType<DeepReadonly<BoundStoreComputed<C>>> = {} as C
     ) {
       return function bindActions<A extends RawStoreActions>(
@@ -149,19 +146,19 @@ function bindId(
 // prettier-ignore
 function buildStore(arg: string):
   <S>(stateParam?: () => S) =>
-  <C extends RawStoreComputed<S>>(rawComputed?: C & ThisType<DeepReadonly<BoundStoreComputed<C>>>) =>
+  <C extends RawStoreComputedProps<S>>(rawComputed?: C & ThisType<DeepReadonly<BoundStoreComputed<C>>>) =>
   <A extends RawStoreActions>(rawActions?: A & ThisType<Store<S, C, A>>) =>
   () => Store<S, C, A>
 // prettier-ignore
 function buildStore<
   S,
-  C extends RawStoreComputed<S>,
+  C extends RawStoreComputedProps<S>,
   A extends RawStoreActions
 >(arg: StoreConfig<S, C, A>): () => Store<S, C, A>
 // prettier-ignore
 function buildStore <
   S,
-  C extends RawStoreComputed<S>,
+  C extends RawStoreComputedProps<S>,
   A extends RawStoreActions
 > (arg: StoreConfig<S, C, A> | string)
 {

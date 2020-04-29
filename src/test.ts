@@ -9,13 +9,20 @@
 //   computed: C
 // }
 
-type Z<T, U> = {
-  [K in keyof T]: 'replaced'
-} &
-  {
-    [K in keyof U]: 'replaced'
-  }
+type F<T> = {
+  [K in keyof T]: 'F<T>!!!'
+}
 
-function f<S, A extends Z<A, S>>(s: S, a: A) {}
+type G<T> = {
+  [K in keyof T]: T[K] extends () => any ? (this: F<T>) => any : never
+}
 
-f({ s: 'fo' }, { test: 'replaced', s: 'other' })
+function f<L extends G<L>>(arg: L) {
+  return arg
+}
+
+f({
+  f() {
+    this // F<G<unknown>>
+  },
+})

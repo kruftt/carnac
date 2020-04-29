@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ComputedRef } from 'vue'
+import { ComputedRef, Ref } from 'vue'
+import { WritableComputedRef } from '@vue/reactivity/dist/reactivity'
 
 export type RootState = Record<string, any>
 export type DeepReadonly<S extends RootState> = {
@@ -25,26 +26,26 @@ export function isPlainObject<T>(a: unknown): a is T {
   return a && typeof a === 'object' && a !== null
 }
 
-export type RawStoreGetter<S extends RootState> = {
+export type RawStoreComputedGetter<S extends RootState> = {
   (state: DeepReadonly<S>): any
 }
 
-export type RawStorePropertyAccessors<S extends RootState> = {
-  get: RawStoreGetter<S>
+export type RawStoreComputedWritable<S extends RootState> = {
+  get: RawStoreComputedGetter<S>
   set: (state: S, value: any) => any
 }
 
-export type RawStoreComputed<S extends RootState> = {
-  [getter: string]: RawStoreGetter<S> | RawStorePropertyAccessors<S>
+export type RawStoreComputedProps<S extends RootState> = {
+  [getter: string]: RawStoreComputedGetter<S> | RawStoreComputedWritable<S>
 }
 
-type BoundStoreComputedProperty<P> = P extends RawStoreGetter<infer S>
+type BoundStoreComputedProperty<P> = P extends RawStoreComputedGetter<infer S>
   ? ComputedRef<ReturnType<P>>
-  : P extends RawStorePropertyAccessors<infer S>
-  ? ComputedRef<ReturnType<P['get']>>
+  : P extends RawStoreComputedWritable<infer S>
+  ? WritableComputedRef<ReturnType<P['get']>>
   : never
 
-export type BoundStoreComputed<C> = C extends RawStoreComputed<infer S>
+export type BoundStoreComputed<C> = C extends RawStoreComputedProps<infer S>
   ? {
       [K in keyof C]: BoundStoreComputedProperty<C[K]>
     }
@@ -63,34 +64,47 @@ interface BaseStore<S extends RootState> {
   patch: (changes: DeepPartial<S>) => void
   notify: (evt: StoreEvent) => void
   subscribe: (callback: StoreSubscriber<S>) => () => void
-  // bundle: () =>
 }
 
 export type MutableStore<
   S extends RootState,
-  C extends RawStoreComputed<S>,
+  C extends RawStoreComputedProps<S>,
   A extends RawStoreActions
 > = BaseStore<S> & {
   state: S
   computed: BoundStoreComputed<C>
   actions: BoundStoreActions<A>
+  bundle: () => {
+    [K in keyof S]: Ref<S[K]>
+  } &
+    BoundStoreComputed<C> &
+    BoundStoreActions<A>
 }
 
 export type Store<
   S extends RootState,
-  C extends RawStoreComputed<S>,
+  C extends RawStoreComputedProps<S>,
   A extends RawStoreActions
 > = BaseStore<S> & {
   readonly state: DeepReadonly<S>
   computed: Readonly<BoundStoreComputed<C>>
   actions: BoundStoreActions<A>
+  bundle: () => {
+    [K in keyof S]: Ref<DeepReadonly<S[K]>>
+  } &
+    DeepReadonly<BoundStoreComputed<C>> &
+    BoundStoreActions<A>
 }
 
-export type GenericStore = Store<any, RawStoreComputed<any>, RawStoreActions>
+export type GenericStore = Store<
+  any,
+  RawStoreComputedProps<any>,
+  RawStoreActions
+>
 
 export type StoreConfig<
   S,
-  C extends RawStoreComputed<S>,
+  C extends RawStoreComputedProps<S>,
   A extends RawStoreActions
 > = {
   id: string
