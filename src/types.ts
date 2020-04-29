@@ -27,21 +27,21 @@ export function isPlainObject<T>(a: unknown): a is T {
 }
 
 export type RawStoreComputedGetter<S extends RootState> = {
-  (state: DeepReadonly<S>): any
+  (state: S): any
 }
 
-export type RawStoreComputedWritable<S extends RootState> = {
+export type RawStoreWritableComputed<S extends RootState> = {
   get: RawStoreComputedGetter<S>
   set: (state: S, value: any) => any
 }
 
 export type RawStoreComputedProps<S extends RootState> = {
-  [getter: string]: RawStoreComputedGetter<S> | RawStoreComputedWritable<S>
+  [getter: string]: RawStoreComputedGetter<S> | RawStoreWritableComputed<S>
 }
 
 type BoundStoreComputedProperty<P> = P extends RawStoreComputedGetter<infer S>
   ? ComputedRef<ReturnType<P>>
-  : P extends RawStoreComputedWritable<infer S>
+  : P extends RawStoreWritableComputed<infer S>
   ? WritableComputedRef<ReturnType<P['get']>>
   : never
 
@@ -59,18 +59,15 @@ export type BoundStoreActions<A extends RawStoreActions> = {
   [k in keyof A]: (...args: Parameters<A[k]>) => ReturnType<A[k]>
 }
 
-interface BaseStore<S extends RootState> {
+export type Store<
+  S extends RootState,
+  C extends RawStoreComputedProps<S>,
+  A extends RawStoreActions
+> = {
   id: string
   patch: (changes: DeepPartial<S>) => void
   notify: (evt: StoreEvent) => void
   subscribe: (callback: StoreSubscriber<S>) => () => void
-}
-
-export type MutableStore<
-  S extends RootState,
-  C extends RawStoreComputedProps<S>,
-  A extends RawStoreActions
-> = BaseStore<S> & {
   state: S
   computed: BoundStoreComputed<C>
   actions: BoundStoreActions<A>
@@ -78,21 +75,6 @@ export type MutableStore<
     [K in keyof S]: Ref<S[K]>
   } &
     BoundStoreComputed<C> &
-    BoundStoreActions<A>
-}
-
-export type Store<
-  S extends RootState,
-  C extends RawStoreComputedProps<S>,
-  A extends RawStoreActions
-> = BaseStore<S> & {
-  readonly state: DeepReadonly<S>
-  computed: Readonly<BoundStoreComputed<C>>
-  actions: BoundStoreActions<A>
-  bundle: () => {
-    [K in keyof S]: Ref<DeepReadonly<S[K]>>
-  } &
-    DeepReadonly<BoundStoreComputed<C>> &
     BoundStoreActions<A>
 }
 
@@ -109,8 +91,8 @@ export type StoreConfig<
 > = {
   id: string
   state: () => S
-  computed: C & ThisType<Readonly<BoundStoreComputed<C>>>
-  actions: A & ThisType<MutableStore<S, C, A>>
+  computed: C & ThisType<BoundStoreComputed<C>>
+  actions: A & ThisType<Store<S, C, A>>
 }
 
 export interface StoreEvent {
@@ -130,7 +112,7 @@ export interface StoreComputedPropertyEvent extends StoreEvent {
 }
 
 export type StoreSubscriber<S extends RootState> = {
-  (evt: StoreEvent, state: DeepReadonly<S>): void
+  (evt: StoreEvent, state: S): void
 }
 
 export interface MutableDepotModels<M> {
