@@ -17,6 +17,8 @@ import {
   StoreComputedPropertyEvent,
   StoreAssignmentEvent,
   StoreEvent,
+  DeepPartial,
+  StoreBatchEvent,
 } from './types'
 
 function _buildStore<
@@ -56,26 +58,39 @@ function _buildStore<
     }
   }
 
+  let currentBatch: StoreEvent[] | null = null
+  const batchStack: StoreEvent[][] = []
   store.notify = function (evt) {
-    subscribers.forEach((callback) => callback(evt, stateRef.value))
+    currentBatch
+      ? currentBatch.push(evt)
+      : subscribers.forEach((callback) => callback(evt, stateRef.value))
   }
   const notify = store.notify
 
-  let activeBatch = false
   store.startBatch = function () {
-    activeBatch = true
+    if (currentBatch) batchStack.push(currentBatch)
+    currentBatch = []
   }
 
-  store.finishBatch = function <Evt extends StoreEvent>(batchEvent: Evt) {
-    if (batchEvent !== null) notify(batchEvent)
-    activeBatch = false
+  store.finishBatch = function <Evt extends StoreEvent>(evt: Evt) {
+    if (currentBatch === null) {
+      console.warn('Called finishBatch with no active batch.')
+      return
+    }
+    const batchEvent: StoreBatchEvent = {
+      ...evt,
+      type: evt ? evt.type : 'batch',
+      events: currentBatch,
+    }
+    currentBatch = batchStack.length ? (batchStack.pop() as StoreEvent[]) : null
+    notify(batchEvent)
   }
 
   let activeMutation = false
   watch(
     () => stateRef.value,
     () => {
-      if (!activeBatch && !activeMutation) {
+      if (!currentBatch && !activeMutation) {
         const evt: StoreAssignmentEvent = {
           type: 'assignment',
         }
@@ -88,11 +103,22 @@ function _buildStore<
     }
   )
 
-  store.patch = function (patch) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  store.patch = function <s extends RootState>(arg0: s, arg1?: DeepPartial<s>) {
+    let target, patch
+    if (arg1 === undefined) {
+      target = stateRef.value
+      patch = arg0
+    } else {
+      target = arg0
+      patch = arg1
+    }
+
     activeMutation = true
-    const oldValues = applyPatch<S>(stateRef.value, patch)
-    const evt: StorePatchEvent<S> = {
+    const oldValues = applyPatch(target, patch)
+    const evt: StorePatchEvent = {
       type: 'patch',
+      target,
       patch,
       oldValues,
     }

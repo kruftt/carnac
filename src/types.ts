@@ -59,13 +59,18 @@ export type BoundStoreActions<A extends RawStoreActions> = {
   [k in keyof A]: (...args: Parameters<A[k]>) => ReturnType<A[k]>
 }
 
+type StorePatch<S extends RootState> = {
+  <s extends RootState, p extends DeepPartial<s>>(target: s, patch: p): p
+  <p extends S>(patch: p): p
+}
+
 export type Store<
   S extends RootState,
   C extends RawStoreComputedProps<S>,
   A extends RawStoreActions
 > = {
   id: string
-  patch: (changes: DeepPartial<S>) => DeepPartial<S>
+  patch: StorePatch<S>
   notify: <Evt extends StoreEvent>(evt: Evt) => void
   startBatch: () => void
   finishBatch: <Evt extends StoreEvent>(evt: Evt) => void
@@ -74,7 +79,7 @@ export type Store<
   computed: BoundStoreComputed<C>
   actions: BoundStoreActions<A>
   bundle: () => { [K in keyof S]: Ref<S[K]> } & {
-    patch: (changes: DeepPartial<S>) => DeepPartial<S>
+    patch: (patch: DeepPartial<S>) => DeepPartial<S>
   } & BoundStoreComputed<C> &
     BoundStoreActions<A>
 }
@@ -104,10 +109,15 @@ export interface StoreAssignmentEvent extends StoreEvent {
   type: 'assignment'
 }
 
-export interface StorePatchEvent<S extends RootState> extends StoreEvent {
+export type StorePatchEvent = StoreEvent & {
   type: 'patch'
-  patch: DeepPartial<S>
-  oldValues: DeepPartial<S>
+  target: RootState
+  patch: RootState
+  oldValues: RootState
+}
+
+export type StoreBatchEvent = StoreEvent & {
+  events: StoreEvent[]
 }
 
 export interface StoreComputedPropertyEvent extends StoreEvent {

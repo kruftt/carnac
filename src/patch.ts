@@ -1,7 +1,7 @@
 import { isPlainObject, DeepPartial, RootState } from './types'
 
 export function applyPatch<S extends RootState>(
-  target: DeepPartial<S>,
+  target: S,
   patch: DeepPartial<S>
 ): DeepPartial<S> {
   const oldValues: DeepPartial<S> = {}
@@ -15,7 +15,8 @@ export function applyPatch<S extends RootState>(
       oldValues[key] = applyPatch(targetValue, newValue)
     } else {
       oldValues[key] = targetValue
-      target[key] = newValue
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      target[key] = newValue as any
     }
   }
   return oldValues
