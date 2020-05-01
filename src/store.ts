@@ -18,10 +18,11 @@ import {
   StoreComputedPropertyEvent,
   StoreRawEvent,
   StoreEvent,
-  DeepPartial,
+  DeepPartialPatch,
   StoreBatchEvent,
   DeepPartialMutator,
   StorePerformEvent,
+  GenericCollection,
 } from './types'
 
 function _buildStore<
@@ -106,22 +107,21 @@ function _buildStore<
     }
   )
 
-  store.patch = function <s extends RootState>(arg0: s, arg1?: DeepPartial<s>) {
-    let target, patch
+  store.patch = function <s extends RootState, p extends DeepPartialPatch<s>>(
+    arg0: s | p,
+    arg1?: p
+  ) {
     if (arg1 === undefined) {
-      target = stateRef.value
-      patch = arg0
-    } else {
-      target = arg0
-      patch = arg1
+      arg1 = arg0 as p
+      arg0 = stateRef.value as s
     }
 
     activeMutation = true
-    const oldValues = applyPatch(target, patch)
+    const oldValues = applyPatch(arg0 as s, arg1)
     const evt: StorePatchEvent = {
       type: 'patch',
-      target,
-      patch,
+      target: arg0 as s,
+      patch: arg1,
       oldValues,
     }
     notify(evt)
@@ -129,30 +129,30 @@ function _buildStore<
     return oldValues
   }
 
-  store.perform = function <s extends RootState>(
-    arg0: s | DeepPartialMutator<S>,
-    arg1?: DeepPartialMutator<s>
-  ) {
-    let target, mutation
+  store.perform = function <
+    s extends RootState | GenericCollection,
+    m extends DeepPartialMutator<s>
+  >(arg0: s | m, arg1?: m) {
+    activeMutation = true
+
     if (arg1 === undefined) {
-      target = stateRef.value
-      mutation = arg0
-    } else {
-      target = arg0
-      mutation = arg1
+      arg1 = arg0 as m
+      arg0 = stateRef.value as s
     }
 
-    activeMutation = true
-    const [rvalue, inverseMutation] = performMutation(target, mutation)
-    const evt: StorePerformEvent<s | S> = {
+    const [rvalue, inverseMutation] = performMutation(arg0 as s, arg1)
+
+    // const [rvalue, inverseMutation] = performMutation(target, mutation)
+    const evt: StorePerformEvent<s> = {
       type: 'perform',
-      target: target as s | S,
-      mutation: mutation as DeepPartialMutator<s | S>,
-      inverse: inverseMutation as DeepPartialMutator<s | S>,
+      target: arg0 as s,
+      mutation: arg1,
+      inverse: inverseMutation,
     }
     notify(evt)
     activeMutation = false
-    return { value: rvalue, inverse: inverseMutation }
+    // return { value: rvalue, inverse: inverseMutation }
+    return rvalue
   }
 
   const boundComputed = {} as BoundStoreComputed<RawStoreComputedProps<S>>

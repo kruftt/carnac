@@ -15,9 +15,13 @@ export function isPlainObject<T = RootState>(o: unknown): o is T {
 export type DeepReadonly<S extends RootState> = {
   readonly [K in keyof S]: DeepReadonly<S[K]>
 }
-export type DeepPartial<S extends RootState> = {
-  [K in keyof S]?: DeepPartial<S[K]>
+export type DeepPartialPatch<S extends RootState> = {
+  [K in keyof S]?: DeepPartialPatch<S[K]>
 }
+
+export type DeepPartialPatchResult<p> = p extends DeepPartialPatch<infer S>
+  ? { [k in keyof p]: DeepPartialPatchResult<p[k]> }
+  : p
 
 export type GenericCollection =
   | Array<any>
@@ -29,6 +33,7 @@ export type GenericCollection =
 type ArrayMutators = 'push' | 'pop' | 'splice' | 'fill' | 'sort' | 'reverse' | 'shift' | 'unshift'
 type MapMutators = 'clear' | 'delete' | 'set'
 type SetMutators = 'add' | 'clear' | 'delete'
+
 export type ArrayMutatorOptions<T> = {
   [k in ArrayMutators]?: Parameters<Array<T>[k]>
 }
@@ -38,20 +43,61 @@ export type MapMutatorOptions<K, V> = {
 export type SetMutatorOptions<T> = {
   [k in SetMutators]?: Parameters<Set<T>[k]>
 }
+
+export type ArrayMutatorResults<O> = O extends ArrayMutatorOptions<infer T>
+  ? {
+      [k in keyof O]: k extends ArrayMutators ? ReturnType<Array<T>[k]> : never
+    }
+  : never
+export type MapMutatorResults<O> = O extends MapMutatorOptions<infer K, infer V>
+  ? {
+      [k in keyof O]: k extends MapMutators ? ReturnType<Map<K, V>[k]> : never
+    }
+  : never
+export type SetMutatorResults<O> = O extends SetMutatorOptions<infer T>
+  ? {
+      [k in keyof O]: k extends SetMutators ? ReturnType<Set<T>[k]> : never
+    }
+  : never
+
 export type CollectionMutatorOptions =
   | ArrayMutatorOptions<any>
   | MapMutatorOptions<any, any>
   | SetMutatorOptions<any>
 
-export type DeepPartialMutator<S> = {
-  [k in keyof S]?: S[k] extends Array<infer T>
-    ? ArrayMutatorOptions<T>
-    : S[k] extends Map<infer K, infer V>
-    ? MapMutatorOptions<K, V>
-    : S[k] extends Set<infer T>
-    ? SetMutatorOptions<T>
-    : DeepPartialMutator<S[k]>
-}
+export type DeepPartialMutator<S> = S extends Array<infer T>
+  ? ArrayMutatorOptions<T> | ArrayMutatorOptions<T>[]
+  : S extends Map<infer K, infer V>
+  ? MapMutatorOptions<K, V> | MapMutatorOptions<K, V>[]
+  : S extends Set<infer T>
+  ? SetMutatorOptions<T> | SetMutatorOptions<T>[]
+  : { [k in keyof S]?: DeepPartialMutator<S[k]> }
+
+export type DeepPartialMutatorResult<m> = m extends ArrayMutatorOptions<infer T>
+  ? ArrayMutatorResults<m>
+  : m extends ArrayMutatorOptions<infer T>[]
+  ? ArrayMutatorResults<m>[]
+  : m extends MapMutatorOptions<infer K, infer V>
+  ? MapMutatorResults<m>
+  : m extends MapMutatorOptions<infer K, infer V>[]
+  ? MapMutatorResults<m>[]
+  : m extends SetMutatorOptions<infer T>
+  ? SetMutatorResults<m>
+  : m extends SetMutatorOptions<infer T>[]
+  ? SetMutatorResults<m>[]
+  : { [k in keyof m]: DeepPartialMutatorResult<m[k]> }
+
+// export type DeepPartialMutatorResult<s extends
+
+// export type DeepPartialMutator<S> = {
+//   [k in keyof S]?: S[k] extends Array<infer T>
+//     ? ArrayMutatorOptions<T> | ArrayMutatorOptions<T>[]
+//     : S[k] extends Map<infer K, infer V>
+//     ? MapMutatorOptions<K, V> | MapMutatorOptions<K, V>[]
+//     : S[k] extends Set<infer T>
+//     ? SetMutatorOptions<T> | SetMutatorOptions<T>[]
+//     : DeepPartialMutator<S[k]>
+// }
 
 export type RawStoreComputedGetter<S extends RootState> = {
   (state: S): any
@@ -86,16 +132,42 @@ export type BoundStoreActions<A extends RawStoreActions> = {
   [k in keyof A]: (...args: Parameters<A[k]>) => ReturnType<A[k]>
 }
 
-type StorePatch<S extends RootState> = {
-  <s extends RootState, p extends DeepPartial<s>>(target: s, patch: p): p
-  <p extends S>(patch: p): p
+export interface StoreEvent {
+  type: string
 }
+
+export interface StoreRawEvent extends StoreEvent {
+  type: 'raw'
+}
+
+type StorePatchFunction<S extends RootState> = {
+  <s extends RootState, p extends DeepPartialPatch<s>>(
+    target: s,
+    patch: p
+  ): DeepPartialPatchResult<p>
+  <p extends S>(patch: p): DeepPartialPatchResult<p>
+}
+
+export type StorePatchEvent = StoreEvent & {
+  type: 'patch'
+  target: RootState
+  patch: RootState
+  oldValues: RootState
+}
+
 type StorePerform<S extends RootState> = {
-  <s extends RootState, m extends DeepPartialMutator<s>>(
+  <s extends RootState | GenericCollection, m extends DeepPartialMutator<s>>(
     target: s,
     mutations: m
-  ): { value: any; inverse: m }
-  <m extends S>(mutations: m): { value: any; inverse: m }
+  ): DeepPartialMutatorResult<m>
+  <m extends DeepPartialMutator<S>>(mutations: m): DeepPartialMutatorResult<m>
+}
+
+export type StorePerformEvent<s extends RootState> = StoreEvent & {
+  type: 'perform'
+  target: s
+  mutation: DeepPartialMutator<s>
+  inverse: DeepPartialMutator<s>
 }
 
 export type Store<
@@ -104,7 +176,7 @@ export type Store<
   A extends RawStoreActions
 > = {
   id: string
-  patch: StorePatch<S>
+  patch: StorePatchFunction<S>
   perform: StorePerform<S>
   notify: <Evt extends StoreEvent>(evt: Evt) => void
   startBatch: () => void
@@ -114,7 +186,7 @@ export type Store<
   computed: BoundStoreComputed<C>
   actions: BoundStoreActions<A>
   bundle: () => { [K in keyof S]: Ref<S[K]> } & {
-    patch: StorePatch<S>
+    patch: StorePatchFunction<S>
   } & BoundStoreComputed<C> &
     BoundStoreActions<A>
 }
@@ -136,21 +208,6 @@ export type StoreConfig<
   actions: A & ThisType<Store<S, C, A>>
 }
 
-export interface StoreEvent {
-  type: string
-}
-
-export interface StoreRawEvent extends StoreEvent {
-  type: 'raw'
-}
-
-export type StorePatchEvent = StoreEvent & {
-  type: 'patch'
-  target: RootState
-  patch: RootState
-  oldValues: RootState
-}
-
 export type StoreBatchEvent = StoreEvent & {
   events: StoreEvent[]
 }
@@ -161,13 +218,6 @@ export interface StoreComputedPropertyEvent extends StoreEvent {
   oldValue: any
 }
 
-export type StorePerformEvent<s extends RootState> = StoreEvent & {
-  type: 'perform'
-  target: s
-  mutation: DeepPartialMutator<s>
-  inverse: DeepPartialMutator<s>
-}
-
 export type StoreSubscriber<S extends RootState> = {
   (evt: StoreEvent, state: S): void
 }
@@ -176,7 +226,7 @@ export interface MutableDepotModels<M> {
   get: (id: string) => M | null
   where: () => MutableDepotModels<M>
   first: (n: number) => MutableDepotModels<M>
-  patch: (changes: DeepPartial<M>) => Array<DeepPartial<M>>
+  patch: (changes: DeepPartialPatch<M>) => Array<DeepPartialPatch<M>>
   [Symbol.iterator]: IterableIterator<M>
 }
 

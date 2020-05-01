@@ -10,6 +10,7 @@ import {
   ArrayMutatorOptions,
   MapMutatorOptions,
   SetMutatorOptions,
+  DeepPartialMutatorResult,
 } from './types'
 
 function isArrayIndexObject(o: RootState): o is DeepPartialMutator<RootState> {
@@ -156,15 +157,29 @@ function performSetMutation(
   return [result, inverse]
 }
 
-export function performMutation<S extends RootState>(
-  target: S,
-  mutators: DeepPartialMutator<S>
-): [any, DeepPartialMutator<S>] {
-  const inverse: DeepPartialMutator<any> = {}
+export function performMutation<
+  S extends RootState,
+  M extends DeepPartialMutator<S>
+>(target: S, mutator: M): [DeepPartialMutatorResult<M>, DeepPartialMutator<S>] {
+  if (Array.isArray(mutator)) {
+    const results: any[] = []
+    const inverse: any[] = []
+    mutator.forEach((m) => {
+      const [r, i] = performMutation(target, m)
+      results.push(r)
+      inverse.push(i)
+    })
+    return [
+      results as DeepPartialMutatorResult<M>,
+      inverse as DeepPartialMutator<S>,
+    ]
+  }
+
   let result
-  for (const key in mutators) {
+  const inverse: Record<string, any> = {}
+  for (const key in mutator) {
     const targetValue = target[key] as RootState | GenericCollection
-    const mutatorValue = mutators[key] as
+    const mutatorValue = mutator[key] as
       | DeepPartialMutator<any>
       | CollectionMutatorOptions
 
@@ -207,5 +222,8 @@ export function performMutation<S extends RootState>(
     // case: target is collection and source is array of mutation objects
   }
 
-  return [result, inverse as DeepPartialMutator<S>]
+  return [
+    result as DeepPartialMutatorResult<M>,
+    inverse as DeepPartialMutator<S>,
+  ]
 }
