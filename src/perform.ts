@@ -22,6 +22,8 @@ function performArrayMutation(
   target: any[],
   mutator: ArrayMutatorOptions<any>
 ): [any, ArrayMutatorOptions<any>] {
+  if (Object.keys(mutator).length > 1)
+    console.warn(`Only 1 mutation allowed per options object: ${mutator}`)
   const inverse = {} as ArrayMutatorOptions<any>
   let args, result
   for (const key in mutator) {
@@ -78,6 +80,8 @@ function performMapMutation(
   target: Map<any, any>,
   mutator: MapMutatorOptions<any, any>
 ): [any, MapMutatorOptions<any, any>] {
+  if (Object.keys(mutator).length > 1)
+    console.warn(`Only 1 mutation allowed per options object: ${mutator}`)
   const inverse = {} as MapMutatorOptions<any, any>
   let args, result
   for (const key in mutator) {
@@ -118,6 +122,8 @@ function performSetMutation(
   target: Set<any>,
   mutator: SetMutatorOptions<any>
 ): [any, SetMutatorOptions<any>] {
+  if (Object.keys(mutator).length > 1)
+    console.warn(`Only 1 mutation allowed per options object: ${mutator}`)
   const inverse = {} as SetMutatorOptions<any>
   let args, result
   for (const key in mutator) {
@@ -150,7 +156,7 @@ function performSetMutation(
   return [result, inverse]
 }
 
-export function performMutations<S extends RootState>(
+export function performMutation<S extends RootState>(
   target: S,
   mutators: DeepPartialMutator<S>
 ): [any, DeepPartialMutator<S>] {
@@ -164,14 +170,14 @@ export function performMutations<S extends RootState>(
 
     switch (getType(targetValue)) {
       case 'Object':
-        ;[result, inverse[key]] = performMutations(
+        ;[result, inverse[key]] = performMutation(
           targetValue,
           mutatorValue as DeepPartialMutator<unknown>
         )
         break
       case 'Array':
         if (isArrayIndexObject(mutatorValue)) {
-          ;[result, inverse[key]] = performMutations(targetValue, mutatorValue)
+          ;[result, inverse[key]] = performMutation(targetValue, mutatorValue)
         } else {
           ;[result, inverse[key]] = performArrayMutation(
             targetValue as unknown[],

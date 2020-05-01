@@ -1,6 +1,7 @@
 import { Ref, ref, computed, toRefs, watch } from 'vue'
 import { stores } from './manager'
 import { applyPatch } from './patch'
+import { performMutation } from './perform'
 import {
   BoundStoreActions,
   BoundStoreComputed,
@@ -15,10 +16,12 @@ import {
   isPlainObject,
   RawStoreWritableComputed,
   StoreComputedPropertyEvent,
-  StoreAssignmentEvent,
+  StoreRawEvent,
   StoreEvent,
   DeepPartial,
   StoreBatchEvent,
+  DeepPartialMutator,
+  StorePerformEvent,
 } from './types'
 
 function _buildStore<
@@ -91,8 +94,8 @@ function _buildStore<
     () => stateRef.value,
     () => {
       if (!currentBatch && !activeMutation) {
-        const evt: StoreAssignmentEvent = {
-          type: 'assignment',
+        const evt: StoreRawEvent = {
+          type: 'raw',
         }
         notify(evt)
       }
@@ -103,7 +106,6 @@ function _buildStore<
     }
   )
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   store.patch = function <s extends RootState>(arg0: s, arg1?: DeepPartial<s>) {
     let target, patch
     if (arg1 === undefined) {
@@ -125,6 +127,32 @@ function _buildStore<
     notify(evt)
     activeMutation = false
     return oldValues
+  }
+
+  store.perform = function <s extends RootState>(
+    arg0: s | DeepPartialMutator<S>,
+    arg1?: DeepPartialMutator<s>
+  ) {
+    let target, mutation
+    if (arg1 === undefined) {
+      target = stateRef.value
+      mutation = arg0
+    } else {
+      target = arg0
+      mutation = arg1
+    }
+
+    activeMutation = true
+    const [rvalue, inverseMutation] = performMutation(target, mutation)
+    const evt: StorePerformEvent<s | S> = {
+      type: 'perform',
+      target: target as s | S,
+      mutation: mutation as DeepPartialMutator<s | S>,
+      inverse: inverseMutation as DeepPartialMutator<s | S>,
+    }
+    notify(evt)
+    activeMutation = false
+    return { value: rvalue, inverse: inverseMutation }
   }
 
   const boundComputed = {} as BoundStoreComputed<RawStoreComputedProps<S>>

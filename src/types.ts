@@ -90,6 +90,13 @@ type StorePatch<S extends RootState> = {
   <s extends RootState, p extends DeepPartial<s>>(target: s, patch: p): p
   <p extends S>(patch: p): p
 }
+type StorePerform<S extends RootState> = {
+  <s extends RootState, m extends DeepPartialMutator<s>>(
+    target: s,
+    mutations: m
+  ): { value: any; inverse: m }
+  <m extends S>(mutations: m): { value: any; inverse: m }
+}
 
 export type Store<
   S extends RootState,
@@ -98,6 +105,7 @@ export type Store<
 > = {
   id: string
   patch: StorePatch<S>
+  perform: StorePerform<S>
   notify: <Evt extends StoreEvent>(evt: Evt) => void
   startBatch: () => void
   finishBatch: <Evt extends StoreEvent>(evt: Evt) => void
@@ -106,7 +114,7 @@ export type Store<
   computed: BoundStoreComputed<C>
   actions: BoundStoreActions<A>
   bundle: () => { [K in keyof S]: Ref<S[K]> } & {
-    patch: (patch: DeepPartial<S>) => DeepPartial<S>
+    patch: StorePatch<S>
   } & BoundStoreComputed<C> &
     BoundStoreActions<A>
 }
@@ -132,8 +140,8 @@ export interface StoreEvent {
   type: string
 }
 
-export interface StoreAssignmentEvent extends StoreEvent {
-  type: 'assignment'
+export interface StoreRawEvent extends StoreEvent {
+  type: 'raw'
 }
 
 export type StorePatchEvent = StoreEvent & {
@@ -151,6 +159,13 @@ export interface StoreComputedPropertyEvent extends StoreEvent {
   type: 'computed'
   value: any
   oldValue: any
+}
+
+export type StorePerformEvent<s extends RootState> = StoreEvent & {
+  type: 'perform'
+  target: s
+  mutation: DeepPartialMutator<s>
+  inverse: DeepPartialMutator<s>
 }
 
 export type StoreSubscriber<S extends RootState> = {
