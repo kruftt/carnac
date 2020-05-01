@@ -8,10 +8,7 @@ export function applyPatch<S extends RootState>(
   for (const key in patch) {
     const targetValue = target[key]
     const newValue = patch[key]
-    if (
-      isPlainObject<RootState>(newValue) &&
-      isPlainObject<RootState>(targetValue)
-    ) {
+    if (isPlainObject(newValue) && isPlainObject(targetValue)) {
       oldValues[key] = applyPatch(targetValue, newValue)
     } else {
       oldValues[key] = targetValue

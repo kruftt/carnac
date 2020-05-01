@@ -201,19 +201,19 @@ function bindId(
 }
 
 // prettier-ignore
-function buildStore(arg: string):
+export function buildStore(arg: string):
   <S>(stateParam?: () => S) =>
   <C extends RawStoreComputedProps<S>>(rawComputed?: C & ThisType<BoundStoreComputed<C>>) =>
   <A extends RawStoreActions>(rawActions?: A & ThisType<Store<S, C, A>>) =>
   () => Store<S, C, A>
 // prettier-ignore
-function buildStore<
+export function buildStore<
   S,
   C extends RawStoreComputedProps<S>,
   A extends RawStoreActions
 >(arg: StoreConfig<S, C, A>): () => Store<S, C, A>
 // prettier-ignore
-function buildStore <
+export function buildStore <
   S,
   C extends RawStoreComputedProps<S>,
   A extends RawStoreActions

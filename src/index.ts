@@ -1,1 +1,1 @@
-export { sayHello } from './test'
+export { buildStore } from './store'

@@ -2,28 +2,55 @@
 import { ComputedRef, Ref } from 'vue'
 import { WritableComputedRef } from '@vue/reactivity/dist/reactivity'
 
+const toString = Object.prototype.toString
+export function getType(a: unknown) {
+  return toString.call(a).slice(8, -1)
+}
+
 export type RootState = Record<string, any>
+export function isPlainObject<T = RootState>(o: unknown): o is T {
+  return o && getType(o) == 'Object'
+}
+
 export type DeepReadonly<S extends RootState> = {
   readonly [K in keyof S]: DeepReadonly<S[K]>
 }
 export type DeepPartial<S extends RootState> = {
   [K in keyof S]?: DeepPartial<S[K]>
 }
+
+export type GenericCollection =
+  | Array<any>
+  | Set<any>
+  | WeakSet<any>
+  | Map<any, any>
+  | WeakMap<any, any>
 // prettier-ignore
 type ArrayMutators = 'push' | 'pop' | 'splice' | 'fill' | 'sort' | 'reverse' | 'shift' | 'unshift'
 type MapMutators = 'clear' | 'delete' | 'set'
 type SetMutators = 'add' | 'clear' | 'delete'
+export type ArrayMutatorOptions<T> = {
+  [k in ArrayMutators]?: Parameters<Array<T>[k]>
+}
+export type MapMutatorOptions<K, V> = {
+  [k in MapMutators]?: Parameters<Map<K, V>[k]>
+}
+export type SetMutatorOptions<T> = {
+  [k in SetMutators]?: Parameters<Set<T>[k]>
+}
+export type CollectionMutatorOptions =
+  | ArrayMutatorOptions<any>
+  | MapMutatorOptions<any, any>
+  | SetMutatorOptions<any>
+
 export type DeepPartialMutator<S> = {
   [k in keyof S]?: S[k] extends Array<infer T>
-    ? { [k in ArrayMutators]?: Parameters<Array<T>[k]> }
+    ? ArrayMutatorOptions<T>
     : S[k] extends Map<infer K, infer V>
-    ? { [k in MapMutators]?: Parameters<Map<K, V>[k]> }
+    ? MapMutatorOptions<K, V>
     : S[k] extends Set<infer T>
-    ? { [k in SetMutators]?: Parameters<Set<T>[k]> }
+    ? SetMutatorOptions<T>
     : DeepPartialMutator<S[k]>
-}
-export function isPlainObject<T>(a: unknown): a is T {
-  return a && typeof a === 'object' && a !== null
 }
 
 export type RawStoreComputedGetter<S extends RootState> = {
