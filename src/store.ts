@@ -118,14 +118,17 @@ function _buildStore<
 
     activeMutation = true
     const oldValues = applyPatch(arg0 as s, arg1)
+
     const evt: StorePatchEvent = {
       type: 'patch',
       target: arg0 as s,
       patch: arg1,
       oldValues,
     }
+
     notify(evt)
     activeMutation = false
+
     return oldValues
   }
 
@@ -133,25 +136,24 @@ function _buildStore<
     s extends RootState | GenericCollection,
     m extends DeepPartialMutator<s>
   >(arg0: s | m, arg1?: m) {
-    activeMutation = true
-
     if (arg1 === undefined) {
       arg1 = arg0 as m
       arg0 = stateRef.value as s
     }
 
+    activeMutation = true
     const [rvalue, inverseMutation] = performMutation(arg0 as s, arg1)
 
-    // const [rvalue, inverseMutation] = performMutation(target, mutation)
     const evt: StorePerformEvent<s> = {
       type: 'perform',
       target: arg0 as s,
       mutation: arg1,
       inverse: inverseMutation,
     }
+
     notify(evt)
     activeMutation = false
-    // return { value: rvalue, inverse: inverseMutation }
+
     return rvalue
   }
 
@@ -195,14 +197,18 @@ function _buildStore<
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let _bundle: any = null
   store.bundle = function () {
-    return {
-      ...toRefs(stateRef.value),
-      ...(boundComputed as BoundStoreComputed<C>),
-      ...boundActions,
-      patch: store.patch,
-      // perform: store.perform
-    }
+    return _bundle
+      ? _bundle
+      : (_bundle = {
+          ...toRefs(stateRef.value),
+          ...(boundComputed as BoundStoreComputed<C>),
+          ...boundActions,
+          patch: store.patch,
+          // perform: store.perform
+        })
   }
 
   stores[id] = store

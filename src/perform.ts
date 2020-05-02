@@ -6,11 +6,13 @@ import {
   DeepPartialMutator,
   RootState,
   GenericCollection,
-  CollectionMutatorOptions,
   ArrayMutatorOptions,
   MapMutatorOptions,
   SetMutatorOptions,
   DeepPartialMutatorResult,
+  ArrayMutatorResults,
+  MapMutatorResults,
+  SetMutatorResults,
 } from './types'
 
 function isArrayIndexObject(o: RootState): o is DeepPartialMutator<RootState> {
@@ -19,54 +21,58 @@ function isArrayIndexObject(o: RootState): o is DeepPartialMutator<RootState> {
   return true
 }
 
-function performArrayMutation(
-  target: any[],
-  mutator: ArrayMutatorOptions<any>
-): [any, ArrayMutatorOptions<any>] {
+function performArrayMutation<T>(
+  target: T[],
+  mutator: ArrayMutatorOptions<T>
+): [ArrayMutatorResults<ArrayMutatorOptions<T>>, ArrayMutatorOptions<T>] {
   if (Object.keys(mutator).length > 1)
     console.warn(`Only 1 mutation allowed per options object: ${mutator}`)
-  const inverse = {} as ArrayMutatorOptions<any>
-  let args, result
+  const inverse = {} as ArrayMutatorOptions<T>
+  const result = {} as ArrayMutatorResults<ArrayMutatorOptions<T>>
+  let args, temp
   for (const key in mutator) {
     switch (key) {
       case 'push':
         args = mutator[key]!
         inverse['splice'] = [target.length, args.length]
-        result = target.push(...args)
+        result[key] = target.push(...args)
         break
       case 'pop':
-        result = target.pop()
-        inverse['push'] = [result]
+        temp = result[key] = target.pop()
+        if (temp === undefined) inverse['pop'] = []
+        else inverse['push'] = [temp]
         break
       case 'splice':
         args = mutator[key]!
-        result = target.splice(...args)
-        inverse[key] = [args[0], args[2].length, ...result]
+        temp = result[key] = target.splice(...args)
+        inverse[key] = [args[0], args.slice(2).length, ...temp]
         break
       case 'fill':
         args = mutator[key]!
+        temp = args.slice(1) as (number | undefined)[]
         inverse['splice'] = [
           args[1] ? args[1] : 0,
           args[2] ? args[2] - args[1]! : target.length,
-          ...target.slice(...args.slice(1)),
+          ...target.slice(...temp),
         ]
-        result = target.fill(...args)
+        result[key] = target.fill(...args)
         break
       case 'sort':
-        inverse['splice'] = [0, target.length, target.slice()]
-        result = target.sort(...mutator[key]!)
+        inverse['splice'] = [0, target.length, ...target.slice()]
+        result[key] = target.sort(...mutator[key]!)
         break
       case 'reverse':
         inverse[key] = []
-        result = target.reverse(...mutator[key]!)
+        result[key] = target.reverse(...mutator[key]!)
         break
       case 'shift':
-        result = target.shift(...mutator[key]!)
-        inverse['unshift'] = [result]
+        temp = result[key] = target.shift(...mutator[key]!)
+        if (temp === undefined) inverse['shift'] = []
+        else inverse['unshift'] = [temp]
         break
       case 'unshift':
         args = mutator[key]!
-        result = target.unshift(...args)
+        result[key] = target.unshift(...args)
         inverse['splice'] = [0, args.length]
         break
       default:
@@ -77,39 +83,40 @@ function performArrayMutation(
   return [result, inverse]
 }
 
-function performMapMutation(
-  target: Map<any, any>,
-  mutator: MapMutatorOptions<any, any>
-): [any, MapMutatorOptions<any, any>] {
+function performMapMutation<K, V>(
+  target: Map<K, V>,
+  mutator: MapMutatorOptions<K, V>
+): [MapMutatorResults<MapMutatorOptions<K, V>>, MapMutatorOptions<K, V>] {
   if (Object.keys(mutator).length > 1)
     console.warn(`Only 1 mutation allowed per options object: ${mutator}`)
-  const inverse = {} as MapMutatorOptions<any, any>
-  let args, result
+  const inverse = {} as MapMutatorOptions<K, V>
+  const result = {} as MapMutatorResults<MapMutatorOptions<K, V>>
+  let args, temp
   for (const key in mutator) {
     switch (key) {
       case 'set':
         args = mutator[key]!
-        result = target.get(args[0])
-        if (result === undefined) inverse['delete'] = [args[0]]
-        else inverse[key] = result
-        result = target.set(...args)
+        temp = target.get(args[0])
+        if (temp === undefined) inverse['delete'] = [args[0]]
+        else inverse[key] = [args[0], temp]
+        result[key] = target.set(...args)
         break
       case 'delete':
         args = mutator[key]!
-        result = target.get(...args)
-        if (result === undefined) inverse[key] = args
-        else inverse['set'] = [args[0], result]
-        result = target.delete(...args)
+        temp = target.get(...args)
+        if (temp === undefined) inverse[key] = args
+        else inverse['set'] = [args[0], temp]
+        result[key] = target.delete(...args)
         break
       case 'clear':
         ;(inverse as any)['_setAll'] = [new Map(target)]
-        result = target.clear()
+        result[key] = target.clear()
         break
       case '_setAll':
         args = (mutator as any)[key] as [Map<any, any>]
         args[0].forEach((v, k) => target.set(k, v))
         inverse['clear'] = []
-        result = target
+        ;(result as any)[key] = target
         break
       default:
         console.warn(`performMapMutation called with invalid key: ${key}`)
@@ -119,35 +126,36 @@ function performMapMutation(
   return [result, inverse]
 }
 
-function performSetMutation(
-  target: Set<any>,
-  mutator: SetMutatorOptions<any>
-): [any, SetMutatorOptions<any>] {
+function performSetMutation<T>(
+  target: Set<T>,
+  mutator: SetMutatorOptions<T>
+): [SetMutatorResults<SetMutatorOptions<T>>, SetMutatorOptions<T>] {
   if (Object.keys(mutator).length > 1)
     console.warn(`Only 1 mutation allowed per options object: ${mutator}`)
-  const inverse = {} as SetMutatorOptions<any>
-  let args, result
+  const inverse = {} as SetMutatorOptions<T>
+  const result = {} as SetMutatorResults<SetMutatorOptions<T>>
+  let args
   for (const key in mutator) {
     switch (key) {
       case 'add':
         args = mutator[key]!
         target.has(...args) ? (inverse[key] = args) : (inverse['delete'] = args)
-        result = target.add(...args)
+        result[key] = target.add(...args)
         break
       case 'delete':
         args = mutator[key]!
         target.has(...args) ? (inverse['add'] = args) : (inverse[key] = args)
-        result = target.delete(...args)
+        result[key] = target.delete(...args)
         break
       case 'clear':
         ;(inverse as any)['_addAll'] = [new Set(target)]
-        result = target.clear()
+        result[key] = target.clear()
         break
       case '_addAll':
         args = (mutator as any)[key] as [Set<any>]
         args[0].forEach((e) => target.add(e))
         inverse['clear'] = []
-        result = target
+        ;(result as any)[key] = target
         break
       default:
         console.warn(`performSetMutation called with invalid key: ${key}`)
@@ -158,43 +166,45 @@ function performSetMutation(
 }
 
 export function performMutation<
-  S extends RootState,
-  M extends DeepPartialMutator<S>
->(target: S, mutator: M): [DeepPartialMutatorResult<M>, DeepPartialMutator<S>] {
+  s extends RootState | GenericCollection,
+  m extends DeepPartialMutator<RootState | GenericCollection>
+>(target: s, mutator: m): [DeepPartialMutatorResult<m>, DeepPartialMutator<s>] {
   if (Array.isArray(mutator)) {
     const results: any[] = []
-    const inverse: any[] = []
+    const inverses: any[] = []
     mutator.forEach((m) => {
       const [r, i] = performMutation(target, m)
       results.push(r)
-      inverse.push(i)
+      inverses.push(i)
     })
     return [
-      results as DeepPartialMutatorResult<M>,
-      inverse as DeepPartialMutator<S>,
+      results as DeepPartialMutatorResult<m>,
+      inverses as DeepPartialMutator<s>,
     ]
   }
 
-  let result
-  const inverse: Record<string, any> = {}
+  const inverse = {} as any
+  const result = {} as any
+
   for (const key in mutator) {
-    const targetValue = target[key] as RootState | GenericCollection
-    const mutatorValue = mutator[key] as
-      | DeepPartialMutator<any>
-      | CollectionMutatorOptions
+    const targetValue = target[key as keyof s] as unknown
+    const mutatorValue = mutator[key]
 
     switch (getType(targetValue)) {
       case 'Object':
-        ;[result, inverse[key]] = performMutation(
-          targetValue,
-          mutatorValue as DeepPartialMutator<unknown>
+        ;[result[key], inverse[key]] = performMutation(
+          targetValue as RootState,
+          mutatorValue
         )
         break
       case 'Array':
         if (isArrayIndexObject(mutatorValue)) {
-          ;[result, inverse[key]] = performMutation(targetValue, mutatorValue)
+          ;[result[key], inverse[key]] = performMutation(
+            targetValue as RootState,
+            mutatorValue
+          )
         } else {
-          ;[result, inverse[key]] = performArrayMutation(
+          ;[result[key], inverse[key]] = performArrayMutation(
             targetValue as unknown[],
             mutatorValue as ArrayMutatorOptions<unknown>
           )
@@ -202,28 +212,24 @@ export function performMutation<
         break
       case 'Map':
       case 'WeakMap':
-        ;[result, inverse[key]] = performMapMutation(
+        ;[result[key], inverse[key]] = performMapMutation(
           targetValue as Map<unknown, unknown>,
           mutatorValue as MapMutatorOptions<unknown, unknown>
         )
         break
       case 'Set':
       case 'WeakSet':
-        ;[result, inverse[key]] = performSetMutation(
+        ;[result[key], inverse[key]] = performSetMutation(
           targetValue as Set<unknown>,
           mutatorValue as SetMutatorOptions<unknown>
         )
       default:
         console.warn(`Unhandled collection mutation, target: ${target}`)
     }
-    // case: target is collection and source is (config) object
-    // case: target is array and source is object with 'n' index key
-    // case: target is array and source is config object
-    // case: target is collection and source is array of mutation objects
   }
 
   return [
-    result as DeepPartialMutatorResult<M>,
-    inverse as DeepPartialMutator<S>,
+    result as DeepPartialMutatorResult<m>,
+    inverse as DeepPartialMutator<s>,
   ]
 }

@@ -19,9 +19,19 @@ export type DeepPartialPatch<S extends RootState> = {
   [K in keyof S]?: DeepPartialPatch<S[K]>
 }
 
-export type DeepPartialPatchResult<p> = p extends DeepPartialPatch<infer S>
-  ? { [k in keyof p]: DeepPartialPatchResult<p[k]> }
-  : p
+// export type DeepPartialPatchResult<p> = p extends DeepPartialPatch<infer S>
+//   ? { [k in keyof p]: DeepPartialPatchResult<p[k]> }
+//   : p
+
+// type test = { a: 4 } extends DeepPartialPatch<{ a: number; b: number }>
+//   ? true
+//   : false
+// type testf = number extends Record<any, any> ? true : false
+// type tt = DeepPartialPatch<RootState>
+// type yt = DeepPartialPatch<number>
+// type ss = DeepPartialPatch<{ a: { b: string; c: number } }>
+// type qq = { a: { b: string } } extends ss ? true : false
+// type rr = DeepPartialPatchResult<{ a: { b: string } }>
 
 export type GenericCollection =
   | Array<any>
@@ -141,11 +151,8 @@ export interface StoreRawEvent extends StoreEvent {
 }
 
 type StorePatchFunction<S extends RootState> = {
-  <s extends RootState, p extends DeepPartialPatch<s>>(
-    target: s,
-    patch: p
-  ): DeepPartialPatchResult<p>
-  <p extends S>(patch: p): DeepPartialPatchResult<p>
+  <s extends RootState, p extends DeepPartialPatch<s>>(target: s, patch: p): p
+  <p extends DeepPartialPatch<S>>(patch: p): p
 }
 
 export type StorePatchEvent = StoreEvent & {
