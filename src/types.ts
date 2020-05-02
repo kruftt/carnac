@@ -12,26 +12,12 @@ export function isPlainObject<T = RootState>(o: unknown): o is T {
   return o && getType(o) == 'Object'
 }
 
-export type DeepReadonly<S extends RootState> = {
-  readonly [K in keyof S]: DeepReadonly<S[K]>
-}
+// export type DeepReadonly<S extends RootState> = {
+//   readonly [K in keyof S]: DeepReadonly<S[K]>
+// }
 export type DeepPartialPatch<S extends RootState> = {
   [K in keyof S]?: DeepPartialPatch<S[K]>
 }
-
-// export type DeepPartialPatchResult<p> = p extends DeepPartialPatch<infer S>
-//   ? { [k in keyof p]: DeepPartialPatchResult<p[k]> }
-//   : p
-
-// type test = { a: 4 } extends DeepPartialPatch<{ a: number; b: number }>
-//   ? true
-//   : false
-// type testf = number extends Record<any, any> ? true : false
-// type tt = DeepPartialPatch<RootState>
-// type yt = DeepPartialPatch<number>
-// type ss = DeepPartialPatch<{ a: { b: string; c: number } }>
-// type qq = { a: { b: string } } extends ss ? true : false
-// type rr = DeepPartialPatchResult<{ a: { b: string } }>
 
 export type GenericCollection =
   | Array<any>
@@ -70,11 +56,6 @@ export type SetMutatorResults<O> = O extends SetMutatorOptions<infer T>
     }
   : never
 
-export type CollectionMutatorOptions =
-  | ArrayMutatorOptions<any>
-  | MapMutatorOptions<any, any>
-  | SetMutatorOptions<any>
-
 export type DeepPartialMutator<S> = S extends Array<infer T>
   ? ArrayMutatorOptions<T> | ArrayMutatorOptions<T>[]
   : S extends Map<infer K, infer V>
@@ -96,18 +77,6 @@ export type DeepPartialMutatorResult<m> = m extends ArrayMutatorOptions<infer T>
   : m extends SetMutatorOptions<infer T>[]
   ? SetMutatorResults<m>[]
   : { [k in keyof m]: DeepPartialMutatorResult<m[k]> }
-
-// export type DeepPartialMutatorResult<s extends
-
-// export type DeepPartialMutator<S> = {
-//   [k in keyof S]?: S[k] extends Array<infer T>
-//     ? ArrayMutatorOptions<T> | ArrayMutatorOptions<T>[]
-//     : S[k] extends Map<infer K, infer V>
-//     ? MapMutatorOptions<K, V> | MapMutatorOptions<K, V>[]
-//     : S[k] extends Set<infer T>
-//     ? SetMutatorOptions<T> | SetMutatorOptions<T>[]
-//     : DeepPartialMutator<S[k]>
-// }
 
 export type RawStoreComputedGetter<S extends RootState> = {
   (state: S): any

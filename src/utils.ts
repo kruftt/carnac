@@ -41,6 +41,4 @@ export function isArrayMutatorOptions(
   for (const key in o) if (!isArrayMutatorKey(key)) return false
   return Object.keys(o).length == 1
 }
-
-// export function isCollectionMutatorOptions(v: unknown): v is
 */

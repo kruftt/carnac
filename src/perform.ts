@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable no-fallthrough */
+
 import {
   getType,
   DeepPartialMutator,
@@ -223,6 +223,7 @@ export function performMutation<
           targetValue as Set<unknown>,
           mutatorValue as SetMutatorOptions<unknown>
         )
+        break
       default:
         console.warn(`Unhandled collection mutation, target: ${target}`)
     }
