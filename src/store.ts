@@ -16,7 +16,6 @@ import {
   isPlainObject,
   RawStoreWritableComputed,
   StoreComputedPropertyEvent,
-  StoreRawEvent,
   StoreEvent,
   DeepPartialPatch,
   StoreBatchEvent,
@@ -44,6 +43,9 @@ function _buildStore<
   })
 
   const stateRef = ref(stateParam()) as Ref<S>
+  store.reset = function () {
+    stateRef.value = stateParam()
+  }
 
   Object.defineProperty(store, 'state', {
     get() {
@@ -62,11 +64,11 @@ function _buildStore<
     }
   }
 
-  let currentBatch: StoreEvent[] | null = null
+  let activeBatch: StoreEvent[] | null = null
   const batchStack: StoreEvent[][] = []
   store.notify = function (evt) {
-    currentBatch
-      ? currentBatch.push(evt)
+    activeBatch
+      ? activeBatch.push(evt)
       : subscribers.forEach((callback) => callback(evt, stateRef.value))
   }
   const notify = store.notify
@@ -74,16 +76,16 @@ function _buildStore<
   store.batch = function <Evt extends StoreEvent>(
     callback: () => undefined | Evt
   ) {
-    if (currentBatch) batchStack.push(currentBatch)
-    currentBatch = []
+    if (activeBatch) batchStack.push(activeBatch)
+    activeBatch = []
     const cbEvt = callback()
     const evt: StoreBatchEvent = {
       type: 'batch',
-      events: currentBatch,
+      events: activeBatch,
     }
 
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    currentBatch = batchStack.length ? batchStack.pop()! : null
+    activeBatch = batchStack.length ? batchStack.pop()! : null
     notify({ ...evt, ...cbEvt })
   }
 
@@ -91,12 +93,7 @@ function _buildStore<
   watch(
     () => stateRef.value,
     () => {
-      if (!currentBatch && !activeMutation) {
-        const evt: StoreRawEvent = {
-          type: 'raw',
-        }
-        notify(evt)
-      }
+      if (!activeBatch && !activeMutation) notify({ type: 'raw' })
     },
     {
       deep: true,
@@ -232,17 +229,17 @@ function bindId(
 }
 
 // prettier-ignore
-export function buildStore(arg: string):
-  <S>(stateParam?: () => S) =>
-  <C extends RawStoreComputedProps<S>>(rawComputed?: C & ThisType<BoundStoreComputed<C>>) =>
-  <A extends RawStoreActions>(rawActions?: A & ThisType<Store<S, C, A>>) =>
-  () => Store<S, C, A>
-// prettier-ignore
 export function buildStore<
   S,
   C extends RawStoreComputedProps<S>,
   A extends RawStoreActions
 >(arg: StoreConfig<S, C, A>): () => Store<S, C, A>
+// prettier-ignore
+export function buildStore(arg: string):
+  <S>(stateParam?: () => S) =>
+  <C extends RawStoreComputedProps<S>>(rawComputed?: C & ThisType<BoundStoreComputed<C>>) =>
+  <A extends RawStoreActions>(rawActions?: A & ThisType<Store<S, C, A>>) =>
+  () => Store<S, C, A>
 // prettier-ignore
 export function buildStore <
   S,

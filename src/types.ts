@@ -25,6 +25,7 @@ export type GenericCollection =
   | WeakSet<any>
   | Map<any, any>
   | WeakMap<any, any>
+
 // prettier-ignore
 type ArrayMutators = 'push' | 'pop' | 'splice' | 'fill' | 'sort' | 'reverse' | 'shift' | 'unshift'
 type MapMutators = 'clear' | 'delete' | 'set'
@@ -164,6 +165,7 @@ export type Store<
     patch: StorePatchFunction<S>
   } & BoundStoreComputed<C> &
     BoundStoreActions<A>
+  reset: () => void
 }
 
 export type GenericStore = Store<
@@ -178,9 +180,9 @@ export type StoreConfig<
   A extends RawStoreActions
 > = {
   id: string
-  state: () => S
-  computed: C & ThisType<BoundStoreComputed<C>>
-  actions: A & ThisType<Store<S, C, A>>
+  state?: () => S
+  computed?: C & ThisType<BoundStoreComputed<C>>
+  actions?: A & ThisType<Store<S, C, A>>
 }
 
 export type StoreBatchEvent = StoreEvent & {
