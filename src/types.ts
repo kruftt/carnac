@@ -155,8 +155,7 @@ export type Store<
   patch: StorePatchFunction<S>
   perform: StorePerform<S>
   notify: <Evt extends StoreEvent>(evt: Evt) => void
-  startBatch: () => void
-  finishBatch: <Evt extends StoreEvent>(evt: Evt) => void
+  batch: (callback: <Evt extends StoreEvent>() => undefined | Evt) => void
   subscribe: (callback: StoreSubscriber<S>) => () => void
   state: S
   computed: BoundStoreComputed<C>

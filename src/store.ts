@@ -71,23 +71,20 @@ function _buildStore<
   }
   const notify = store.notify
 
-  store.startBatch = function () {
+  store.batch = function <Evt extends StoreEvent>(
+    callback: () => undefined | Evt
+  ) {
     if (currentBatch) batchStack.push(currentBatch)
     currentBatch = []
-  }
-
-  store.finishBatch = function <Evt extends StoreEvent>(evt: Evt) {
-    if (currentBatch === null) {
-      console.warn('Called finishBatch with no active batch.')
-      return
-    }
-    const batchEvent: StoreBatchEvent = {
-      ...evt,
-      type: evt ? evt.type : 'batch',
+    const cbEvt = callback()
+    const evt: StoreBatchEvent = {
+      type: 'batch',
       events: currentBatch,
     }
-    currentBatch = batchStack.length ? (batchStack.pop() as StoreEvent[]) : null
-    notify(batchEvent)
+
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    currentBatch = batchStack.length ? batchStack.pop()! : null
+    notify({ ...evt, ...cbEvt })
   }
 
   let activeMutation = false
