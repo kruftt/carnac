@@ -76,4 +76,11 @@ describe('store.subscribe', () => {
       store.state
     )
   })
+
+  it('notifies subscribers of custom events', () => {
+    unsub = store.subscribe(fn)
+    store.notify({ type: 'test' })
+    expect(fn.mock.calls.length).toBe(1)
+    expect(fn).toHaveBeenCalledWith({ type: 'test' }, store.state)
+  })
 })

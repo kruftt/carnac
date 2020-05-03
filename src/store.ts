@@ -73,14 +73,13 @@ function _buildStore<
   }
   const notify = store.notify
 
-  store.batch = function <Evt extends StoreEvent>(
-    callback: () => undefined | Evt
-  ) {
+  store.batch = function (callback: () => void | StoreEvent) {
     if (activeBatch) batchStack.push(activeBatch)
     activeBatch = []
     const cbEvt = callback()
     const evt: StoreBatchEvent = {
       type: 'batch',
+      _isBatch: true,
       events: activeBatch,
     }
 
@@ -93,7 +92,8 @@ function _buildStore<
   watch(
     () => stateRef.value,
     () => {
-      if (!activeBatch && !activeMutation) notify({ type: 'raw' })
+      if (!activeMutation) notify({ type: 'raw' })
+      // if (!activeBatch && !activeMutation) notify({ type: 'raw' })
     },
     {
       deep: true,
