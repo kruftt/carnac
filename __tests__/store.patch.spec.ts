@@ -25,14 +25,13 @@ describe('patch', () => {
   })
 
   it('returns an inverse patch of old values', () => {
-    const patch = {
+    const inverse = store.patch({
       a: 'a changed',
       b: 42,
       foo: {
         bar: 'bar changed',
       },
-    }
-    const inverse = store.patch(patch)
+    })
     store.patch(inverse)
     expect(store.state).toEqual(testStateBuilder1())
   })

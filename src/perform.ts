@@ -21,15 +21,6 @@ function isArrayIndexObject(o: RootState): o is DeepPartialMutator<RootState> {
   return true
 }
 
-// function performArrayMutation<
-//   T,
-//   t extends T[],
-//   m extends ArrayMutatorOptions<t>
-// >(target: t, mutator: m): [DeepPartialMutatorResult<m>, DeepPartialMutator<t>] {
-// function performArrayMutation<T>(
-//   target: T[],
-//   mutator: ArrayMutatorOptions<T>
-// ): [DeepPartialMutatorResult<m>, DeepPartialMutator<t>] {
 function performArrayMutation<T>(
   target: T[],
   mutator: ArrayMutatorOptions<T>
@@ -188,7 +179,7 @@ export function performMutation<
     })
     return [
       results as DeepPartialMutatorResult<m>,
-      inverses as DeepPartialMutator<s>,
+      inverses.reverse() as DeepPartialMutator<s>,
     ]
   }
 
@@ -226,6 +217,6 @@ export function performMutation<
       ) as any
     default:
       console.warn(`Unhandled collection mutation, target: ${target}`)
+      return [{}, {}] as any
   }
-  return [{}, {}] as any
 }

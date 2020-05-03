@@ -148,7 +148,10 @@ function _buildStore<
     notify(evt)
     activeMutation = false
 
-    return rvalue
+    return {
+      returnValues: rvalue,
+      inverse: inverseMutation as any,
+    }
   }
 
   const boundComputed = {} as BoundStoreComputed<RawStoreComputedProps<S>>
@@ -166,6 +169,7 @@ function _buildStore<
           const result = set.call(boundComputed, stateRef.value, val)
           const evt: StoreComputedPropertyEvent = {
             type: 'computed',
+            name,
             value: val,
             oldValue,
           }
@@ -184,14 +188,12 @@ function _buildStore<
 
   const boundActions = (store.actions = {} as BoundStoreActions<A>)
   for (const name in rawActions) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     boundActions[name] = function (...args: Array<any>) {
       const result = rawActions[name].apply(store, args)
       return result
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let _bundle: any = null
   store.bundle = function () {
     return _bundle

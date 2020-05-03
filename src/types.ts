@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ComputedRef, Ref } from 'vue'
 import { WritableComputedRef } from '@vue/reactivity/dist/reactivity'
 
@@ -64,19 +63,20 @@ export type DeepPartialMutator<S> = S extends Array<infer T>
   : S extends Set<infer T>
   ? SetMutatorOptions<T> | SetMutatorOptions<T>[]
   : { [k in keyof S]?: DeepPartialMutator<S[k]> }
+// export type DeepPartialMutator<S> = S extends Array<infer T>
+//   ? ArrayMutatorOptions<T> | ArrayMutatorOptions<T>[]
+//   : S extends Map<infer K, infer V>
+//   ? MapMutatorOptions<K, V> | MapMutatorOptions<K, V>[]
+//   : S extends Set<infer T>
+//   ? SetMutatorOptions<T> | SetMutatorOptions<T>[]
+//   : { [k in keyof S]?: DeepPartialMutator<S[k]> }
 
 export type DeepPartialMutatorResult<m> = m extends ArrayMutatorOptions<infer T>
   ? ArrayMutatorResults<m>
-  : m extends ArrayMutatorOptions<infer T>[]
-  ? ArrayMutatorResults<m>[]
   : m extends MapMutatorOptions<infer K, infer V>
   ? MapMutatorResults<m>
-  : m extends MapMutatorOptions<infer K, infer V>[]
-  ? MapMutatorResults<m>[]
   : m extends SetMutatorOptions<infer T>
   ? SetMutatorResults<m>
-  : m extends SetMutatorOptions<infer T>[]
-  ? SetMutatorResults<m>[]
   : { [k in keyof m]: DeepPartialMutatorResult<m[k]> }
 
 export type RawStoreComputedGetter<S extends RootState> = {
@@ -136,8 +136,14 @@ type StorePerform<S extends RootState> = {
   <s extends RootState | GenericCollection, m extends DeepPartialMutator<s>>(
     target: s,
     mutations: m
-  ): DeepPartialMutatorResult<m>
-  <m extends DeepPartialMutator<S>>(mutations: m): DeepPartialMutatorResult<m>
+  ): {
+    returnValues: DeepPartialMutatorResult<m>
+    inverse: DeepPartialMutator<s>
+  }
+  <m extends DeepPartialMutator<S>>(mutations: m): {
+    returnValues: DeepPartialMutatorResult<m>
+    inverse: DeepPartialMutator<S>
+  }
 }
 
 export type StorePerformEvent<s extends RootState> = StoreEvent & {
@@ -192,6 +198,7 @@ export type StoreBatchEvent = StoreEvent & {
 
 export interface StoreComputedPropertyEvent extends StoreEvent {
   type: 'computed'
+  name: string
   value: any
   oldValue: any
 }
