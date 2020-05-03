@@ -26,7 +26,7 @@ type TestActions1 = {
   resetB: () => void
 }
 
-type TestStore1 = Store<TestState1, TestComputed1, TestActions1>
+export type TestStore1 = Store<TestState1, TestComputed1, TestActions1>
 
 export const testStateBuilder1: () => TestState1 = () => ({
   a: 'string',

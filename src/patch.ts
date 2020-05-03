@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { isPlainObject, DeepPartialPatch, RootState } from './types'
 
 export function applyPatch<s extends RootState, p extends DeepPartialPatch<s>>(

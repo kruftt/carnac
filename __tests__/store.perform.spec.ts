@@ -83,4 +83,41 @@ describe('store.perform', () => {
     )
     expect(store.state.set).toEqual(new Set([1, 2]))
   })
+
+  it('works with nested collections', () => {
+    const useTestStore = buildStore({
+      id: 'Test Store',
+      state: () => ({
+        foo: {
+          arr: [1, 2, 3],
+        },
+      }),
+    })
+    const testStore = useTestStore()
+    const result = testStore.perform({
+      foo: { arr: { push: [4, 5, 6] } },
+    })
+    expect(testStore.state.foo.arr).toEqual([1, 2, 3, 4, 5, 6])
+    testStore.perform(result.inverse)
+    expect(testStore.state.foo.arr).toEqual([1, 2, 3])
+  })
+
+  it('works with splice and fill array mutations', () => {
+    const result1 = store.perform({
+      arr: { push: [1, 2, 3, 4, 5, 6] },
+    })
+    const result2 = store.perform({
+      arr: { splice: [2, 3, 7, 8, 9] },
+    })
+    const result3 = store.perform({
+      arr: { fill: [0, 4] },
+    })
+    expect(store.state.arr).toEqual([1, 2, 7, 8, 0, 0])
+    store.perform(result3.inverse)
+    expect(store.state.arr).toEqual([1, 2, 7, 8, 9, 6])
+    store.perform(result2.inverse)
+    expect(store.state.arr).toEqual([1, 2, 3, 4, 5, 6])
+    store.perform(result1.inverse)
+    expect(store.state.arr).toEqual([])
+  })
 })
