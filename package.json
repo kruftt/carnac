@@ -1,6 +1,6 @@
 {
   "name": "carnac",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "Vue 3 State Management",
   "main": "index.js",
   "scripts": {

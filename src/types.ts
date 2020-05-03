@@ -163,6 +163,7 @@ export type Store<
   actions: BoundStoreActions<A>
   bundle: () => { [K in keyof S]: Ref<S[K]> } & {
     patch: StorePatchFunction<S>
+    perform: StorePerform<S>
   } & BoundStoreComputed<C> &
     BoundStoreActions<A>
   reset: () => void

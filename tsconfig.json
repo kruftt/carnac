@@ -14,8 +14,9 @@
     "types": ["node", "jest"],
     "rootDir": ".",
     "paths": {
-      "carnac": ["src/index"]
+      "carnac": ["src/index"],
+      "src": ["src"]
     }
   },
-  "include": ["src", "test"]
+  "include": ["src/**/*", "__tests__/**/*"]
 }

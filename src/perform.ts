@@ -21,6 +21,15 @@ function isArrayIndexObject(o: RootState): o is DeepPartialMutator<RootState> {
   return true
 }
 
+// function performArrayMutation<
+//   T,
+//   t extends T[],
+//   m extends ArrayMutatorOptions<t>
+// >(target: t, mutator: m): [DeepPartialMutatorResult<m>, DeepPartialMutator<t>] {
+// function performArrayMutation<T>(
+//   target: T[],
+//   mutator: ArrayMutatorOptions<T>
+// ): [DeepPartialMutatorResult<m>, DeepPartialMutator<t>] {
 function performArrayMutation<T>(
   target: T[],
   mutator: ArrayMutatorOptions<T>
@@ -183,54 +192,40 @@ export function performMutation<
     ]
   }
 
-  const inverse = {} as any
-  const result = {} as any
-
-  for (const key in mutator) {
-    const targetValue = target[key as keyof s] as unknown
-    const mutatorValue = mutator[key]
-
-    switch (getType(targetValue)) {
-      case 'Object':
-        ;[result[key], inverse[key]] = performMutation(
-          targetValue as RootState,
-          mutatorValue
-        )
-        break
-      case 'Array':
-        if (isArrayIndexObject(mutatorValue)) {
+  switch (getType(target)) {
+    case 'Object':
+    case 'Array':
+      if (getType(target) === 'Object' || isArrayIndexObject(mutator)) {
+        const inverse = {} as any
+        const result = {} as any
+        for (const key in mutator) {
           ;[result[key], inverse[key]] = performMutation(
-            targetValue as RootState,
-            mutatorValue
-          )
-        } else {
-          ;[result[key], inverse[key]] = performArrayMutation(
-            targetValue as unknown[],
-            mutatorValue as ArrayMutatorOptions<unknown>
+            target[key as keyof s],
+            mutator[key]
           )
         }
-        break
-      case 'Map':
-      case 'WeakMap':
-        ;[result[key], inverse[key]] = performMapMutation(
-          targetValue as Map<unknown, unknown>,
-          mutatorValue as MapMutatorOptions<unknown, unknown>
-        )
-        break
-      case 'Set':
-      case 'WeakSet':
-        ;[result[key], inverse[key]] = performSetMutation(
-          targetValue as Set<unknown>,
-          mutatorValue as SetMutatorOptions<unknown>
-        )
-        break
-      default:
-        console.warn(`Unhandled collection mutation, target: ${target}`)
-    }
-  }
+        return [result, inverse]
+      }
 
-  return [
-    result as DeepPartialMutatorResult<m>,
-    inverse as DeepPartialMutator<s>,
-  ]
+      return performArrayMutation(
+        target as unknown[],
+        mutator as ArrayMutatorOptions<unknown>
+      ) as any
+
+    case 'Map':
+    case 'WeakMap':
+      return performMapMutation(
+        target as Map<unknown, unknown>,
+        mutator as MapMutatorOptions<unknown, unknown>
+      ) as any
+    case 'Set':
+    case 'WeakSet':
+      return performSetMutation(
+        target as Set<unknown>,
+        mutator as SetMutatorOptions<unknown>
+      ) as any
+    default:
+      console.warn(`Unhandled collection mutation, target: ${target}`)
+  }
+  return [{}, {}] as any
 }
