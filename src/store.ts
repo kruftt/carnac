@@ -84,8 +84,7 @@ function _buildStore<
       events: activeBatch,
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    activeBatch = batchStack.length ? batchStack.pop()! : null
+    activeBatch = batchStack.pop() ?? null
     notify({ ...evt, ...cbEvt })
   }
 

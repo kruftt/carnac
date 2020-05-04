@@ -59,14 +59,9 @@ store.state.a = 42
 store.state.foo.bar = 'buzz'
 > 'raw'
 ```
-Mutating values directly on the state object only notifies subscribers that a mutation has occured, not what particular value has changed or what it was before.  Furthermore, each assignment generates a separate event.  The `patch` function addresses these issues:
+Mutating values directly on the state object only notifies subscribers that a mutation has occured, not what particular value has changed or what it was before.  Furthermore, each assignment generates a separate event.  The `patch` function addresses these issues by allowing multiple values to be assigned at once:
 ```ts
-const oldPatch = store.patch({
-    a: 100,
-    foo: {
-        bar: 'patched!'
-    }
-})
+const oldPatch = store.patch({ a: 100, foo: { bar: 'patched!' } })
 > 'patch'
 
 oldPatch
@@ -76,20 +71,24 @@ oldPatch
 ```ts
 const patch = store.patch(oldPatch)
 > 'patch'
+
+patch
+> { a: 100, foo: { bar: 'patched!' } } 
 ```
 The patch event also passes this information along to any subscribers.
 
-Patch works great for any time you need to assign new values to state variables.  However, when dealing with collections it is often necessary to call mutation methods, such as `Array.splice`.  These methods have the potential to spam store subscribers with raw events, such as when splicing into the front of an array.  For these cases, use the `perform` function:
+Patch works great for any time you need to assign new values to state variables.  However, when dealing with collections it is often necessary to call mutation methods, such as `Array.splice`.  These methods have the potential to spam store subscribers with raw events, such as when splicing into the front of an array.  For these cases, use the `perform` function, which specifies collection mutator functions to perform, along with their arguments:
 ```ts
+// performs store.state.arr.splice(2, 2, 5, 6)
 let result = store.perform({
     arr: { splice: [ 2, 2, 5, 6 ] }
-})
+}) 
 > 'perform'
 
 store.state.arr
 > [ 0, 1, 5, 6, 4 ]
 ```
-Multiple collection mutations can be combined together in an array:
+Subsequent collection mutations can be performed in sequence given an array:
 ```ts
 result = store.perform({
     arr: [ { splice: [ 1, 0, 7 ] },
@@ -114,7 +113,7 @@ result
                      { splice: [1, 1] }] }
   }
 ```
-Stores may also contain computed properties, either as getters alone or as a configuration object with `get` and `set` methods:
+Stores may also contain computed properties, either as getters or as a configuration object with `get` and `set` methods:
 ```ts
 const useStore = buildStore({
     ...
@@ -124,7 +123,7 @@ const useStore = buildStore({
 
         quadrupleA (state) {
             return 2 * this.doubleA.value
-        }
+        },
 
         octupleA: {
             get (state) {
@@ -149,7 +148,7 @@ store.subscribe((evt, state) => {
 store.computed.octupleA.value = 16
 > { type: 'computed', name: 'octupleA', value: 16, oldValue: 0 }
 ```
-Actions are store methods recieve the store as the `this` context. Within actions it can be useful to batch together various state mutations into a single batch event.
+Actions are store methods which recieve the store as `this`. Within actions it is useful to batch together various state mutations into a single batch event.
 ```ts
 const useStore = buildStore({
     ...
@@ -171,7 +170,7 @@ const useStore = buildStore({
     }
 })
 ```
-When called, `myAction` will fire a single batch even that contains its three sub-events in an `evt.events` property.  Batched events can be nested so that actions can be composed into still larger actions.
+When called, `myAction` will fire a single batch event. The sub-events will be accessible in an `evt.events` property.  Batched events can be nested so that actions can be composed into still larger actions.
 
 &nbsp;  
 
