@@ -19,6 +19,7 @@ Design Goals:
 ---  
 &nbsp;
 ## Usage
+### Store Creation
 
 <!--
 First just a state example
@@ -50,6 +51,8 @@ const store = useStore()
 store.state.a // 0
 store.state.foo.bar // 'baz'
 ```
+&nbsp;
+### Subscription
 Subscribers can listen for state changes on the store. Direct assignments to the store state are logged as 'raw' events:
 ```ts
 const unsubscribe = store.subscribe((evt, state) => {
@@ -61,7 +64,9 @@ store.state.a = 42
 store.state.foo.bar = 'buzz'
 > 'raw'
 ```
-Mutating values directly on the state object only notifies subscribers that a mutation has occured, not what particular value has changed or what it was before, and each assignment generates a separate event.  The `patch` function addresses these issues by allowing multiple values to be assigned at once:
+&nbsp;
+### Patch
+Mutating values directly on the state object only notifies subscribers that a mutation has occured, not what particular value has changed or what it was before, with each assignment generating a separate event.  The `patch` function addresses these issues by allowing multiple values to be assigned at once:
 ```ts
 const oldPatch = store.patch({ a: 100, foo: { bar: 'patched!' } })
 > 'patch'
@@ -69,7 +74,7 @@ const oldPatch = store.patch({ a: 100, foo: { bar: 'patched!' } })
 oldPatch
 > { a: 42, foo: { bar: 'buzz' } }
 ```
-`oldPatch` is the inverse of `patch`:
+The value returned by the patch function, `oldPatch`, can be used to reverse the `patch`:
 ```ts
 const patch = store.patch(oldPatch)
 > 'patch'
@@ -79,10 +84,13 @@ patch
 ```
 The patch event also passes this information along to any subscribers.
 
-Patch works great for any time you need to assign new values to state variables.  However, when dealing with collections it is often necessary to call mutation methods, such as `Array.splice`.  These methods have the potential to spam store subscribers with raw events, such as when splicing into the front of an array.  For these cases, use the `perform` function, which specifies collection mutator functions to perform, along with their arguments:
+&nbsp;
+### Perform
+Patch works great for any time you need to assign new values to state variables.  However, when dealing with collections we may need to call mutation methods such as `Array.splice`.  These methods have the potential to spam store subscribers with raw events, such as when splicing into the front of an array.  For these cases the `perform` function accepts a collection mutator object, analogous to a patch object, which specifies collection mutators to perform, along with their arguments:
 ```ts
-// performs store.state.arr.splice(2, 2, 5, 6)
-let result = store.perform({
+// store.state.arr = [ 0, 1, 2, 3, 4 ]
+// store.state.arr.splice(2, 2, 5, 6)
+store.perform({
     arr: { splice: [ 2, 2, 5, 6 ] }
 }) 
 > 'perform'
@@ -90,9 +98,9 @@ let result = store.perform({
 store.state.arr
 > [ 0, 1, 5, 6, 4 ]
 ```
-Subsequent collection mutations can be performed in sequence by passing in an array:
+Subsequent collection mutations can be performed in sequence by passing in an array of mutations:
 ```ts
-result = store.perform({
+const result = store.perform({
     arr: [ { splice: [ 1, 0, 7 ] },
            { pop: [] },
            { push: [ 8, 9 ] }, ]
@@ -115,6 +123,8 @@ result
                      { splice: [1, 1] }] }
   }
 ```
+&nbsp;
+### Computed Properties
 Stores may also contain computed properties, either as getters or as a configuration object with `get` and `set` methods:
 ```ts
 const useStore = buildStore({
@@ -150,29 +160,46 @@ store.subscribe((evt, state) => {
 store.computed.octupleA.value = 16
 > { type: 'computed', name: 'octupleA', value: 16, oldValue: 0 }
 ```
-Actions are store methods which recieve the store as `this`. Within actions it is useful to batch together various state mutations into a single batch event.
+&nbsp;
+### Actions
+Actions are store methods, recieving the completed store as `this`.
 ```ts
 const useStore = buildStore({
-    ...
+    
+    // ...
 
     actions: {
         myAction() {
-            this.batch(() => {
-                this.computed.octupleA = 42
-                this.patch({
-                    foo: {
-                        bar: 'fuzz'
-                    }
-                })
-                this.perform({
-                    arr: { push: [4, 5, 6] }
-                })
+            this.computed.octupleA = 42
+            this.patch({
+                foo: {
+                    bar: 'fuzz'
+                }
+            })
+            this.perform({
+                arr: { push: [4, 5, 6] }
             })
         }
     }
 })
 ```
-When called, `myAction` will fire a single batch event. The sub-events will be accessible in an `evt.events` property.  Batched events can be nested so that actions can be composed into still larger actions.
+Within actions it is useful to batch together various state mutations into a single batch event, by using the store's `batch` method:
+```ts
+const useStore = buildStore({
+    // ...
+
+    actions: {
+        myAction() {
+            this.batch(() => {
+                this.computed.octupleA = 42
+                this.patch(...)
+                this.perform(...)
+            })
+        }
+    }
+})
+```
+When called, `myAction` will fire a single `'batch'` event. The sub-events for `'computed'`, `'patch'`, and `'perform'` will be accessible in an `evt.events` property.  Batched events can be nested so that batches can be composed into still larger batches which emit a single event.
 
 &nbsp;  
 

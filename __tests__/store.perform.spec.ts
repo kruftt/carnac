@@ -120,4 +120,26 @@ describe('store.perform', () => {
     store.perform(result1.inverse)
     expect(store.state.arr).toEqual([])
   })
+
+  it('allows mutations of array elements', () => {
+    const store = buildStore({
+      id: 'Array Item Test',
+      state: () => ({
+        arr: [
+          [1, 2, 3],
+          [4, 5, 6],
+        ],
+      }),
+    })()
+    store.perform({
+      arr: {
+        0: { splice: [1, 1, 6, 7] },
+        1: [{ pop: [] }, { push: [8, 9] }],
+      },
+    })
+    expect(store.state.arr).toEqual([
+      [1, 6, 7, 3],
+      [4, 5, 8, 9],
+    ])
+  })
 })

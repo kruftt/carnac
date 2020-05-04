@@ -56,8 +56,10 @@ export type SetMutatorResults<O> = O extends SetMutatorOptions<infer T>
     }
   : never
 
+type ArrayMemberMutator<T> = { [index: number]: DeepPartialMutator<T> }
+
 export type DeepPartialMutator<S> = S extends Array<infer T>
-  ? ArrayMutatorOptions<T> | ArrayMutatorOptions<T>[]
+  ? ArrayMemberMutator<T> | ArrayMutatorOptions<T> | ArrayMutatorOptions<T>[]
   : S extends Map<infer K, infer V>
   ? MapMutatorOptions<K, V> | MapMutatorOptions<K, V>[]
   : S extends Set<infer T>

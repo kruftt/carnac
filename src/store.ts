@@ -83,8 +83,10 @@ function _buildStore<
       _isBatch: true,
       events: activeBatch,
     }
-
-    activeBatch = batchStack.pop() ?? null
+    // Jest doesn't like this for some reason
+    // activeBatch = batchStack.pop() ?? null
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    activeBatch = batchStack.length ? batchStack.pop()! : null
     notify({ ...evt, ...cbEvt })
   }
 
