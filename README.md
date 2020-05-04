@@ -30,7 +30,7 @@ Then actions
 Then batching
 -->
 Stores are created using `buildStore`, which returns a composition function that returns the store instance.
-```
+```ts
 import { buildStore } from 'carnac'
 
 const useStore = buildStore({
@@ -49,7 +49,7 @@ store.state.a // 0
 store.state.foo.bar // 'baz'
 ```
 Subscribers can listen for state changes on the store. Direct assignments to the store state are logged as 'raw' events:
-```
+```ts
 const unsubscribe = store.subscribe((evt, state) => {
     console.log(evt.type)
 })
@@ -60,7 +60,7 @@ store.state.foo.bar = 'buzz'
 > 'raw'
 ```
 Mutating values directly on the state object only notifies subscribers that a mutation has occured, not what particular value has changed or what it was before.  Furthermore, each assignment generates a separate event.  The `patch` function addresses these issues:
-```
+```ts
 const oldPatch = store.patch({
     a: 100,
     foo: {
@@ -73,14 +73,14 @@ oldPatch
 > { a: 42, foo: { bar: 'buzz' } }
 ```
 `oldPatch` is the inverse of `patch`:
-```
+```ts
 const patch = store.patch(oldPatch)
 > 'patch'
 ```
 The patch event also passes this information along to any subscribers.
 
 Patch works great for any time you need to assign new values to state variables.  However, when dealing with collections it is often necessary to call mutation methods, such as `Array.splice`.  These methods have the potential to spam store subscribers with raw events, such as when splicing into the front of an array.  For these cases, use the `perform` function:
-```
+```ts
 let result = store.perform({
     arr: { splice: [ 2, 2, 5, 6 ] }
 })
@@ -90,7 +90,7 @@ store.state.arr
 > [ 0, 1, 5, 6, 4 ]
 ```
 Multiple collection mutations can be combined together in an array:
-```
+```ts
 result = store.perform({
     arr: [ { splice: [ 1, 0, 7 ] },
            { pop: [] },
@@ -102,7 +102,7 @@ store.state.arr
 > [ 0, 7, 1, 5, 6, 8, 9 ]
 ```
 `perform` returns both the results of calling the mutator methods and an inverse sequence of operations:
-```
+```ts
 result
 > {
     returnValues : { arr: [{ splice: [] }, 
@@ -115,7 +115,7 @@ result
   }
 ```
 Stores may also contain computed properties, either as getters alone or as a configuration object with `get` and `set` methods:
-```
+```ts
 const useStore = buildStore({
     ...
 
@@ -140,7 +140,7 @@ const useStore = buildStore({
 
 ```
 Events from setting computed properties contain the property name and the old/new values.
-```
+```ts
 const store = useStore()
 store.subscribe((evt, state) => {
     console.log(evt)
@@ -150,7 +150,7 @@ store.computed.octupleA.value = 16
 > { type: 'computed', name: 'octupleA', value: 16, oldValue: 0 }
 ```
 Actions are store methods recieve the store as the `this` context. Within actions it can be useful to batch together various state mutations into a single batch event.
-```
+```ts
 const useStore = buildStore({
     ...
 
