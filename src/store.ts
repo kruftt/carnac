@@ -60,7 +60,8 @@ function _buildStore<
   store.subscribe = function (callback: StoreSubscriber<S>) {
     subscribers.push(callback)
     return function unsubscribe() {
-      subscribers.splice(subscribers.indexOf(callback), 1)
+      const i = subscribers.indexOf(callback)
+      if (i > -1) subscribers.splice(i, 1)
     }
   }
 
@@ -111,19 +112,19 @@ function _buildStore<
     }
 
     activeMutation = true
-    const oldValues = applyPatch(arg0 as s, arg1)
+    const oldPatch = applyPatch(arg0 as s, arg1)
 
     const evt: StorePatchEvent = {
       type: 'patch',
       target: arg0 as s,
       patch: arg1,
-      oldValues,
+      oldPatch,
     }
 
     notify(evt)
     activeMutation = false
 
-    return oldValues
+    return oldPatch
   }
 
   store.perform = function <

@@ -27,7 +27,7 @@ describe('store.subscribe', () => {
     expect(fn.mock.calls.length).toBe(1)
   })
 
-  it('notifies subscribers of computed state mutations', () => {
+  it('notifies subscribers of computed property assignments', () => {
     unsub = store.subscribe(fn)
     store.computed.getterSetter.value = 42
     expect(fn.mock.calls.length).toBe(1)
@@ -37,7 +37,7 @@ describe('store.subscribe', () => {
     )
   })
 
-  it('notifies subscribers of patch events', () => {
+  it('notifies subscribers of patches', () => {
     unsub = store.subscribe(fn)
     store.patch({
       a: 'changed',
@@ -52,7 +52,7 @@ describe('store.subscribe', () => {
           a: 'changed',
           b: 42,
         },
-        oldValues: {
+        oldPatch: {
           a: 'string',
           b: 0,
         },
@@ -61,7 +61,7 @@ describe('store.subscribe', () => {
     )
   })
 
-  it('notifies subscribers of perform events', () => {
+  it('notifies subscribers of performances', () => {
     unsub = store.subscribe(fn)
     const mutation = { arr: { push: [4, 5, 6] } }
     store.perform(mutation)

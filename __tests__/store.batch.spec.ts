@@ -50,9 +50,7 @@ describe('store.batch', () => {
       store.state.a = 'changed'
       store.computed.getterSetter.value = 42
       store.patch(patch)
-      store.perform({
-        arr: { push: [1, 2, 3] },
-      })
+      store.perform(mutation)
     })
     expect(fn.mock.calls.length).toBe(1)
     expect(fn).toHaveBeenCalledWith(
@@ -62,7 +60,7 @@ describe('store.batch', () => {
         events: [
           { type: 'raw' },
           { type: 'computed', name: 'getterSetter', value: 42, oldValue: 0 },
-          { type: 'patch', target: store.state, patch, oldValues: oldPatch },
+          { type: 'patch', target: store.state, patch, oldPatch },
           {
             type: 'perform',
             target: store.state,

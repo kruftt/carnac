@@ -129,7 +129,7 @@ export type StorePatchEvent = StoreEvent & {
   type: 'patch'
   target: RootState
   patch: RootState
-  oldValues: RootState
+  oldPatch: RootState
 }
 
 type StorePerform<S extends RootState> = {

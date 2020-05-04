@@ -1,27 +1,192 @@
 # carnac
 
-Carnac - Vue 3 State Management
+Vue 3 State Management Library
 
-Design Goals:
-\- flux architecture
-\- Polylithic state
-\- Automatically typed
-\- Reduce boilerplate code
+Design Goals:  
+\- flux architecture  
+\- Polylithic state  
+\- Automatically typed  
+\- Reduce boilerplate code  
 
 ---
-# !!! WARNING !!!
-Use only for experimentation, this is an extremely early work in progress.
+&nbsp;  
+---
+## !!! WARNING !!!
+Early work in progress. Use only for experimentation purposes.
+
+---  
+&nbsp;
+## Usage
+
+<!--
+First just a state example
+Then with patching multiple
+Then inverse
+Then with perform
+Then inverse
+Then with performing multiple
+Then computed
+Then actions
+Then batching
+-->
+Stores are created using `buildStore`, which returns a composition function that returns the store instance.
+```
+import { buildStore } from 'carnac'
+
+const useStore = buildStore({
+    id: 'my store',    
+    state: () => {
+        a: 0,
+        foo : { 
+            bar: 'baz'
+        },
+        arr: [ 0, 1, 2, 3, 4 ]
+    }
+})
+
+const store = useStore()
+store.state.a // 0
+store.state.foo.bar // 'baz'
+```
+Subscribers can listen for state changes on the store. Direct assignments to the store state are logged as 'raw' events:
+```
+const unsubscribe = store.subscribe((evt, state) => {
+    console.log(evt.type)
+})
+
+store.state.a = 42
+> 'raw'
+store.state.foo.bar = 'buzz'
+> 'raw'
+```
+Mutating values directly on the state object only notifies subscribers that a mutation has occured, not what particular value has changed or what it was before.  Furthermore, each assignment generates a separate event.  The `patch` function addresses these issues:
+```
+const oldPatch = store.patch({
+    a: 100,
+    foo: {
+        bar: 'patched!'
+    }
+})
+> 'patch'
+
+oldPatch
+> { a: 42, foo: { bar: 'buzz' } }
+```
+`oldPatch` is the inverse of `patch`:
+```
+const patch = store.patch(oldPatch)
+> 'patch'
+```
+The patch event also passes this information along to any subscribers.
+
+Patch works great for any time you need to assign new values to state variables.  However, when dealing with collections it is often necessary to call mutation methods, such as `Array.splice`.  These methods have the potential to spam store subscribers with raw events, such as when splicing into the front of an array.  For these cases, use the `perform` function:
+```
+let result = store.perform({
+    arr: { splice: [ 2, 2, 5, 6 ] }
+})
+> 'perform'
+
+store.state.arr
+> [ 0, 1, 5, 6, 4 ]
+```
+Multiple collection mutations can be combined together in an array:
+```
+result = store.perform({
+    arr: [ { splice: [ 1, 0, 7 ] },
+           { pop: [] },
+           { push: [ 8, 9 ] }, ]
+})
+> 'perform'
+
+store.state.arr
+> [ 0, 7, 1, 5, 6, 8, 9 ]
+```
+`perform` returns both the results of calling the mutator methods and an inverse sequence of operations:
+```
+result
+> {
+    returnValues : { arr: [{ splice: [] }, 
+                           { pop: 4 },
+                           { push: 7 }] }
+
+    inverse: { arr: [{ splice: [5, 2] },
+                     { push: [4] },
+                     { splice: [1, 1] }] }
+  }
+```
+Stores may also contain computed properties, either as getters alone or as a configuration object with `get` and `set` methods:
+```
+const useStore = buildStore({
+    ...
+
+    computed: {
+        doubleA: (state) => 2 * state.a,
+
+        quadrupleA (state) {
+            return 2 * this.doubleA.value
+        }
+
+        octupleA: {
+            get (state) {
+                return 2 * this.quadrupleA.value
+            }
+            set (state, value) {
+                state.a = value / 8
+                return value
+            }
+        }
+    }
+})
+
+```
+Events from setting computed properties contain the property name and the old/new values.
+```
+const store = useStore()
+store.subscribe((evt, state) => {
+    console.log(evt)
+})
+
+store.computed.octupleA.value = 16
+> { type: 'computed', name: 'octupleA', value: 16, oldValue: 0 }
+```
+Actions are store methods recieve the store as the `this` context. Within actions it can be useful to batch together various state mutations into a single batch event.
+```
+const useStore = buildStore({
+    ...
+
+    actions: {
+        myAction() {
+            this.batch(() => {
+                this.computed.octupleA = 42
+                this.patch({
+                    foo: {
+                        bar: 'fuzz'
+                    }
+                })
+                this.perform({
+                    arr: { push: [4, 5, 6] }
+                })
+            })
+        }
+    }
+})
+```
+When called, `myAction` will fire a single batch even that contains its three sub-events in an `evt.events` property.  Batched events can be nested so that actions can be composed into still larger actions.
+
+&nbsp;  
+
+---
 
 &nbsp;
 ## Store
 property | function
 ---|---
-state    | readonly singleton state tree
-patch    | Predefined action that assigns values from patch object
-perform  | Predefined action that performs specified collection mutator method
-computed | ComputedRefs generated from (this: computed, state) => val
-actions  | Can mutate the state freely, responsible for their own notifications
-
+state    | Reactive state tree
+computed | User-defined vue `ComputedRef`s
+actions  | User-defined store methods
+patch (changes)  | assigns all values from the changes object in a single event, returns an oldPatch of replaced values
+perform (mutation)  | performs specified collection mutations in a single event, returns the results from the function calls and an inverse mutation
+<!-- generated from a single getter callback `(this: computed, state) => val` or a `{ get() {...}, set() {...} }` configuration object. -->
 &nbsp;
 ## Depot
 property | function
