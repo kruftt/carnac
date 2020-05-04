@@ -1,18 +1,20 @@
-# carnac
+# Carnac
 
 Vue 3 State Management Library
 
-Design Goals:  
-\- flux architecture  
-\- Polylithic state  
-\- Automatically typed  
-\- Reduce boilerplate code  
+Design Goals:
+- Flux architecture  
+- Polylithic state  
+- Automatically typed  
+- Reduced boilerplate  
+- Provide data for undo/redo  
+- Additional features for collections.
+
+&nbsp;
 
 ---
-&nbsp;  
----
-## !!! WARNING !!!
-Early work in progress. Use only for experimentation purposes.
+<h3 align='center'>!!! WARNING !!!</h3>
+<div align='center'>Early work in progress. Use only for experimentation purposes.</div>
 
 ---  
 &nbsp;
@@ -59,7 +61,7 @@ store.state.a = 42
 store.state.foo.bar = 'buzz'
 > 'raw'
 ```
-Mutating values directly on the state object only notifies subscribers that a mutation has occured, not what particular value has changed or what it was before.  Furthermore, each assignment generates a separate event.  The `patch` function addresses these issues by allowing multiple values to be assigned at once:
+Mutating values directly on the state object only notifies subscribers that a mutation has occured, not what particular value has changed or what it was before, and each assignment generates a separate event.  The `patch` function addresses these issues by allowing multiple values to be assigned at once:
 ```ts
 const oldPatch = store.patch({ a: 100, foo: { bar: 'patched!' } })
 > 'patch'
@@ -88,7 +90,7 @@ let result = store.perform({
 store.state.arr
 > [ 0, 1, 5, 6, 4 ]
 ```
-Subsequent collection mutations can be performed in sequence given an array:
+Subsequent collection mutations can be performed in sequence by passing in an array:
 ```ts
 result = store.perform({
     arr: [ { splice: [ 1, 0, 7 ] },
@@ -122,7 +124,7 @@ const useStore = buildStore({
         doubleA: (state) => 2 * state.a,
 
         quadrupleA (state) {
-            return 2 * this.doubleA.value
+            return 2 * this.doubleA.value  // ComputedRef
         },
 
         octupleA: {
