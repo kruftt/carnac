@@ -52,7 +52,7 @@ store.state.a // 0
 store.state.foo.bar // 'baz'
 ```
 &nbsp;
-### Subscription
+### Event Subscription
 Subscribers can listen for state changes on the store. Direct assignments to the store state are logged as 'raw' events:
 ```ts
 const unsubscribe = store.subscribe((evt, state) => {
@@ -86,10 +86,9 @@ The patch event also passes this information along to any subscribers.
 
 &nbsp;
 ### Perform
-Patch works great for any time you need to assign new values to state variables.  However, when dealing with collections we may need to call mutation methods such as `Array.splice`.  These methods have the potential to spam store subscribers with raw events, such as when splicing into the front of an array.  For these cases the `perform` function accepts a collection mutator object, analogous to a patch object, which specifies collection mutators to perform, along with their arguments:
+Patch works great for any time you need to assign new values to state variables.  However, when dealing with collections we may need to call mutator methods such as `Array.splice`.  These methods have the potential to generate many raw events, such as when splicing into the front of an array.  For these cases the `perform` function accepts a collection mutator object, analogous to a patch object, which specifies collection mutators to perform, along with their arguments:
 ```ts
-// store.state.arr = [ 0, 1, 2, 3, 4 ]
-// store.state.arr.splice(2, 2, 5, 6)
+// store.state.arr == [ 0, 1, 2, 3, 4 ]
 store.perform({
     arr: { splice: [ 2, 2, 5, 6 ] }
 }) 
@@ -98,7 +97,7 @@ store.perform({
 store.state.arr
 > [ 0, 1, 5, 6, 4 ]
 ```
-Subsequent collection mutations can be performed in sequence by passing in an array of mutations:
+A sequence of collection mutations can be performed by passing in an array of mutations:
 ```ts
 const result = store.perform({
     arr: [ { splice: [ 1, 0, 7 ] },
@@ -110,7 +109,7 @@ const result = store.perform({
 store.state.arr
 > [ 0, 7, 1, 5, 6, 8, 9 ]
 ```
-`perform` returns both the results of calling the mutator methods and an inverse sequence of operations:
+`perform` returns both the results of each function call and an inverse mutator object:
 ```ts
 result
 > {
@@ -171,14 +170,8 @@ const useStore = buildStore({
     actions: {
         myAction() {
             this.computed.octupleA = 42
-            this.patch({
-                foo: {
-                    bar: 'fuzz'
-                }
-            })
-            this.perform({
-                arr: { push: [4, 5, 6] }
-            })
+            this.patch({ foo: { bar: 'fuzz' } })
+            this.perform({ arr: { push: [4, 5, 6] } })
         }
     }
 })
