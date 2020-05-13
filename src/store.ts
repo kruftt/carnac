@@ -2,6 +2,7 @@ import { Ref, ref, computed, toRefs, watch } from 'vue'
 import { stores } from './manager'
 import { applyPatch } from './patch'
 import { performMutation } from './perform'
+import { useEvents } from './events'
 import {
   BoundStoreActions,
   BoundStoreComputed,
@@ -11,14 +12,11 @@ import {
   RawStoreComputedProps,
   RootState,
   StoreConfig,
-  StoreSubscriber,
   StorePatchEvent,
   isPlainObject,
   RawStoreWritableComputed,
   StoreComputedPropertyEvent,
-  StoreEvent,
   DeepPartialPatch,
-  StoreBatchEvent,
   DeepPartialMutator,
   StorePerformEvent,
   GenericCollection,
@@ -55,40 +53,13 @@ function _buildStore<
       return (stateRef.value = value)
     },
   })
+  ;({
+    subscribe: store.subscribe,
+    batch: store.batch,
+    notify: store.notify,
+  } = useEvents(store))
 
-  const subscribers: StoreSubscriber<S>[] = []
-  store.subscribe = function (callback: StoreSubscriber<S>) {
-    subscribers.push(callback)
-    return function unsubscribe() {
-      const i = subscribers.indexOf(callback)
-      if (i > -1) subscribers.splice(i, 1)
-    }
-  }
-
-  let activeBatch: StoreEvent[] | null = null
-  const batchStack: StoreEvent[][] = []
-  store.notify = function (evt) {
-    activeBatch
-      ? activeBatch.push(evt)
-      : subscribers.forEach((callback) => callback(evt, stateRef.value))
-  }
   const notify = store.notify
-
-  store.batch = function (callback: () => void | StoreEvent) {
-    if (activeBatch) batchStack.push(activeBatch)
-    activeBatch = []
-    const cbEvt = callback()
-    const evt: StoreBatchEvent = {
-      type: 'batch',
-      _isBatch: true,
-      events: activeBatch,
-    }
-    // Jest doesn't like this for some reason
-    // activeBatch = batchStack.pop() ?? null
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    activeBatch = batchStack.length ? batchStack.pop()! : null
-    notify({ ...evt, ...cbEvt })
-  }
 
   let activeMutation = false
   watch(

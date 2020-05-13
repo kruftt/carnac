@@ -15,7 +15,7 @@ describe('store.subscribe', () => {
     unsub = store.subscribe(fn)
     store.state.a = 'changed'
     expect(fn.mock.calls.length).toBe(1)
-    expect(fn).toHaveBeenCalledWith({ type: 'raw' }, store.state)
+    expect(fn).toHaveBeenCalledWith({ type: 'raw' }, store)
   })
 
   it('allows subscribers to unsubscribe', () => {
@@ -33,7 +33,7 @@ describe('store.subscribe', () => {
     expect(fn.mock.calls.length).toBe(1)
     expect(fn).toHaveBeenCalledWith(
       { type: 'computed', name: 'getterSetter', value: 42, oldValue: 0 },
-      store.state
+      store
     )
   })
 
@@ -57,7 +57,7 @@ describe('store.subscribe', () => {
           b: 0,
         },
       },
-      store.state
+      store
     )
   })
 
@@ -73,7 +73,7 @@ describe('store.subscribe', () => {
         mutation,
         inverse: { arr: { splice: [0, 3] } },
       },
-      store.state
+      store
     )
   })
 
@@ -81,6 +81,6 @@ describe('store.subscribe', () => {
     unsub = store.subscribe(fn)
     store.notify({ type: 'test' })
     expect(fn.mock.calls.length).toBe(1)
-    expect(fn).toHaveBeenCalledWith({ type: 'test' }, store.state)
+    expect(fn).toHaveBeenCalledWith({ type: 'test' }, store)
   })
 })

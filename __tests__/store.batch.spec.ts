@@ -22,7 +22,7 @@ describe('store.batch', () => {
     const rawEvt = { type: 'raw' }
     expect(fn).toHaveBeenCalledWith(
       { type: 'batch', _isBatch: true, events: [rawEvt, rawEvt, rawEvt] },
-      store.state
+      store
     )
     unsub()
   })
@@ -69,7 +69,7 @@ describe('store.batch', () => {
           },
         ],
       },
-      store.state
+      store
     )
   })
 
@@ -104,7 +104,7 @@ describe('store.batch', () => {
           },
         ],
       },
-      store.state
+      store
     )
   })
 
@@ -129,7 +129,7 @@ describe('store.batch', () => {
           { type: 'computed', name: 'getterSetter', value: 42, oldValue: 0 },
         ],
       },
-      store.state
+      store
     )
   })
 })

@@ -1,5 +1,9 @@
-import { ComputedRef, Ref } from 'vue'
-import { WritableComputedRef } from '@vue/reactivity/dist/reactivity'
+import {
+  ComputedRef,
+  Ref,
+  WritableComputedRef,
+} from '@vue/reactivity/dist/reactivity'
+import { StoreEvent, StoreSubscriber } from './events'
 
 const toString = Object.prototype.toString
 export function getType(a: unknown) {
@@ -114,10 +118,6 @@ export type BoundStoreActions<A extends RawStoreActions> = {
   [k in keyof A]: (...args: Parameters<A[k]>) => ReturnType<A[k]>
 }
 
-export interface StoreEvent {
-  type: string
-}
-
 export interface StoreRawEvent extends StoreEvent {
   type: 'raw'
 }
@@ -165,7 +165,7 @@ export type Store<
   perform: StorePerform<S>
   notify: <Evt extends StoreEvent>(evt: Evt) => void
   batch: (callback: () => void | StoreEvent) => void
-  subscribe: (callback: StoreSubscriber<S>) => () => void
+  subscribe: (callback: StoreSubscriber<Store<S, C, A>>) => () => void
   state: S
   computed: BoundStoreComputed<C>
   actions: BoundStoreActions<A>
@@ -194,20 +194,11 @@ export type StoreConfig<
   actions?: A & ThisType<Store<S, C, A>>
 }
 
-export type StoreBatchEvent = StoreEvent & {
-  _isBatch: true
-  events: StoreEvent[]
-}
-
 export interface StoreComputedPropertyEvent extends StoreEvent {
   type: 'computed'
   name: string
   value: any
   oldValue: any
-}
-
-export type StoreSubscriber<S extends RootState> = {
-  (evt: StoreEvent, state: S): void
 }
 
 export interface MutableDepotModels<M> {
